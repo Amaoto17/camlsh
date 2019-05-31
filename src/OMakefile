@@ -1,0 +1,21 @@
+OCAMLINCLUDES += ../../OParse/src/
+
+FILES[] =
+  ast
+  inst
+  parse
+  gen
+  vm
+  camlsh
+
+PROGRAM = camlsh
+# OCAMLFLAGS += -i
+OCAML_LIBS += ../../Oparse/src/oparse
+OCAML_OTHER_LIBS += unix
+
+.DEFAULT: $(OCamlProgram $(PROGRAM), $(FILES))
+
+.PHONY: clean
+
+clean:
+  rm -f *.cm* *.o camlsh camlsh.opt
