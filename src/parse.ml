@@ -20,9 +20,19 @@ let word =
     ]
     |. spaces
 
+let elem =
+  succeed (fun w -> Ast.Word w)
+    |= word
+
+let redirection =
+  succeed (fun path -> Ast.Stdout path)
+    |. char '>'
+    |. spaces
+    |= word
+
 let simple =
-  succeed (fun ws -> Ast.External ws)
-    |= many1 word
+  succeed (fun elems -> Ast.External elems)
+    |= many1 (elem <|> redirection)
     |. spaces
 
 let command =

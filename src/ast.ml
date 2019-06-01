@@ -1,9 +1,16 @@
 let (!%) = Printf.sprintf
-
+external (&) : ('a -> 'b) -> 'a -> 'b = "%apply"
 
 type t =
-  | External of string list
+  | External of t list
+  | Stdout of string
+  | Word of string
 
-let show = function
-  | External args ->
-      !% "<external (%s)>" (String.concat " " args)
+let rec show = function
+  | External nodes ->
+      !% "<external (%s)>"
+        & nodes |> List.map show |> String.concat " "
+  | Stdout path ->
+      !% "> %s" path
+  | Word w ->
+      w

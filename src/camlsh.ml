@@ -14,14 +14,15 @@ module Deco = struct
     | `Cyan    -> !% "\x1b[36m%s\x1b[m" s
 end
 
-let dump_insts insts =
-  ListLabels.iteri insts
-    ~f: ( fun i inst ->
-            let s =
-              !% "[%d] %s" i (Inst.show inst)
-                |> Deco.colorize `Magenta in
-            eprintf "%s\n%!" s
-        )
+let dump_code =
+  Array.iteri
+    ( fun i inst ->
+        let s =
+          !% "[%d] %s" i (Inst.show inst)
+            |> Deco.colorize `Magenta
+        in
+        eprintf "%s\n%!" s
+    )
 
 
 let main =
@@ -31,11 +32,11 @@ let main =
     let input = read_line () in
     try
       match Parse.parse input with
-      | Ok plist ->
-          eprintf "%s\n%!" (Ast.show plist |> Deco.colorize `Cyan);
-          let insts = Gen.emit plist in
-          dump_insts insts;
-          Vm.execute insts
+      | Ok ast ->
+          eprintf "%s\n%!" (Ast.show ast |> Deco.colorize `Cyan);
+          let code = Gen.compile ast in
+          dump_code code;
+          Vm.execute code
       | Error msg ->
           eprintf "%s\n%!" (msg |> Deco.colorize `Red)
     with End_of_file -> exit 0
