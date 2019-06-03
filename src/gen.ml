@@ -26,37 +26,55 @@ redirection:
   wait
 
 pipeline:
-  % ls | sort | head
+  % ls | head
   pipe
   jump 0:
 
-  stdin
   pipe
   jump 1:
 
-  stdin
-  pipe
-  jump 2:
-
-  stdin
+  fork
   push "ls"
   exec
-  exit
+  wait
 
-  label 2:
-  stdout
-  push "sort"
-  exec
-  exit
-
-  label 1:
-  stdout
+  fork
   push "head"
   exec
-  exit
+  wait
 
   label 0:
   pipewait
+
+pipeline:
+  % ls | sort | head
+    pipeopen
+    jump 0:
+    pipe
+    jump 1:
+    fork
+    jump 2:
+    push "ls"
+    exec
+    wait
+    exit
+  2:
+    fork
+    jump
+    push "sort"
+    exec
+    wait
+    exit
+  1:
+    fork
+    jump
+    push "head"
+    exec
+    wait
+    exit
+  0:
+    wait
+
 
 *)
 
@@ -83,21 +101,44 @@ module Code = struct
 end
 
 
-let rec walk t = function
+let rec walk_pipe t = function
+  | Ast.Pipe (left, right) ->
+      Code.emit t Inst.Pipe;
+      let sub = Code.create () in
+      walk_pipe sub left;
+      let offset = sub.len + 1 in
+      Code.emit t & Inst.Jump offset;
+      Code.append t sub;
+      walk_pipe t right
+  | node ->
+      walk t node;
+      Code.emit t Inst.Exit
+
+
+and walk t = function
   | Ast.External nodes ->
       Code.emit t Inst.Fork;
       let sub = Code.create () in
       List.iter (walk sub) nodes;
-      let pos = t.len + sub.len + 2 in
-      Code.emit t & Inst.Jump pos;
+      let offset = sub.len + 2 in
+      Code.emit t & Inst.Jump offset;
       Code.append t sub;
       Code.emit t Inst.Exec;
+      Code.emit t Inst.Wait
+
+  | Ast.Pipe _ as pipe ->
+      Code.emit t Inst.Pipeopen;
+      let sub = Code.create () in
+      walk_pipe sub pipe;
+      let offset = sub.len + 1 in
+      Code.emit t & Inst.Jump offset;
+      Code.append t sub;
       Code.emit t Inst.Wait
 
   | Ast.Stdout path ->
       Code.emit t & Inst.Push path;
       Code.emit t Inst.Stdout
-      
+
   | Ast.Word w ->
       Code.emit t & Inst.Push w
 

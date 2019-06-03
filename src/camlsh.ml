@@ -18,7 +18,7 @@ let dump_code =
   Array.iteri
     ( fun i inst ->
         let s =
-          !% "[%d] %s" i (Inst.show inst)
+          !% "[%02d] %s" i (Inst.show inst)
             |> Deco.colorize `Magenta
         in
         eprintf "%s\n%!" s

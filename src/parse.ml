@@ -3,6 +3,7 @@ module Base = Oparse.Char.Make(Str_char)
 module Parser = struct
   include Base
   include Oparse.Combinator.Make(Base)
+  include Oparse.Expr.Make(Base)
 end
 
 open Parser
@@ -38,10 +39,18 @@ let simple =
 let command =
   simple
 
+let pipeline =
+  let op =
+    succeed (fun l r -> Ast.Pipe (l, r))
+      |. char '|'
+      |. spaces
+  in
+  chainl command op
+
 let program =
   succeed identity
     |. spaces
-    |= command
+    |= pipeline
     |. eof
 
 
