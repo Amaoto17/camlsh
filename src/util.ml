@@ -10,6 +10,7 @@ module Deco = struct
     | `Yellow  -> !% "\x1b[33m%s\x1b[m" s
     | `Magenta -> !% "\x1b[35m%s\x1b[m" s
     | `Cyan    -> !% "\x1b[36m%s\x1b[m" s
+    | `Gray    -> !% "\x1b[2;37m%s\x1b[m" s
 end
 
 

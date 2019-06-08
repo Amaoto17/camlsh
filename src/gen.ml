@@ -68,25 +68,31 @@ module Code = struct
 end
 
 
-let gen_jump t1 =
-  let src = Code.length t1 in
-  Code.emit t1 & Inst.Nop;
-  fun t2 ->
-    let dst = Code.length t2 in
-    Code.set t2 src & Inst.Jump dst
+let reserve t =
+  let pos = Code.length t in
+  Code.emit t & Inst.Nop;
+  pos
+
+let insert_jump t pos =
+  let dst = Code.length t in
+  Code.set t pos & Inst.Jump dst
 
 
 let rec walk t = function
+  | Ast.Builtin (op, nodes) ->
+      List.iter (walk t) nodes;
+      Code.emit t & Inst.Builtin op
+
   | Ast.External nodes ->
       List.iter (walk t) nodes;
       Code.emit t & Inst.Exec
 
   | Ast.Pipe (left, right) ->
       Code.emit t & Inst.Pipe;
-      let parent = gen_jump t in
+      let parent = reserve t in
       walk t left;
       Code.emit t & Inst.Exit;
-      parent t;
+      insert_jump t parent;
       walk t right;
       Code.emit t & Inst.Wait
 

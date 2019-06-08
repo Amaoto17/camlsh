@@ -62,17 +62,59 @@ let redirect (ctx : Context.t) =
 
   revert ctx
 
+let redir_bt (ctx : Context.t) =
+  begin match ctx.stdout with
+  | None ->
+      fun () -> ()
+  | Some dst ->
+      let saved_stdout = dup stdout in
+      dup2 dst stdout;
+      close dst;
+      fun () ->
+        dup2 saved_stdout stdout;
+        close saved_stdout;
+  end
+
+
+let exec_builtin args = function
+  | "cd" ->
+      let len = Array.length args in
+      let dst =
+        if len = 0 then getenv "HOME"
+        else if len = 1 then args.(0)
+        else failwith "cd: too many arguments"
+      in
+      chdir dst
+
+  | "echo" ->
+      let s = args |> Array.to_list |> String.concat " " in
+      printf "%s\n%!" s
+
+  | _ -> failwith "invalid builtin command"
+
 
 let execute code =
   let stack = Stack.create () in
 
   let rec fetch ctx pc =
     try
+      let s = !% "fetch [%d]" pc in
+      eprintf "%s\n%!" (s |> Deco.colorize `Gray);
       let inst = code.(pc) in
       exec ctx pc inst
     with Invalid_argument _ -> ()
 
   and exec ctx pc = function
+    | Inst.Builtin op ->
+        let args =
+          Stack.fold (fun xs x -> x :: xs) [] stack
+            |> Array.of_list
+        in
+        let closer = redir_bt ctx in
+        exec_builtin args op;
+        closer ();
+        fetch ctx & pc + 1
+
     | Inst.Exec ->
         let args =
           Stack.fold (fun xs x -> x :: xs) [] stack
@@ -85,7 +127,7 @@ let execute code =
         | _ ->
             revert ctx;
             let (pid, status) = wait () in
-            let res = !% "pid: %d, status: %s" pid (status_string status) in
+            let res = !% "(exec) pid: %d, status: %s" pid (status_string status) in
             eprintf "%s\n%!" (res |> Deco.colorize `Green);
             let ctx = Context.create () in
             fetch ctx & pc + 1
@@ -125,7 +167,7 @@ let execute code =
 
     | Inst.Wait ->
         let (pid, status) = wait () in
-        let res = !% "pid: %d, status: %s" pid (status_string status) in
+        let res = !% "(wait) pid: %d, status: %s" pid (status_string status) in
         eprintf "%s\n%!" (res |> Deco.colorize `Green);
         fetch ctx & pc + 1
   in

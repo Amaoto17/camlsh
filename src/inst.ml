@@ -2,6 +2,7 @@ open Util
 
 
 type t =
+  | Builtin of string
   | Exec
   | Exit
   | Jump of int
@@ -12,6 +13,7 @@ type t =
   | Wait
 
 let show = function
+  | Builtin op -> !% "builtin %s" op
   | Exec -> "exec"
   | Exit -> "exit"
   | Jump pos -> !% "jump -> %d" pos

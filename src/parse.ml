@@ -20,6 +20,16 @@ let word =
     ]
     |. spaces
 
+let keyword s =
+  one_of
+    [ backtrack &
+        succeed identity
+          |= string s
+          |. not_followed_by (alpha_num <|> char '_')
+    ; expect (!% "keyword %S" s)
+    ]
+    |. spaces
+
 let elem =
   succeed (fun w -> Ast.Word w)
     |= word
@@ -35,8 +45,17 @@ let simple =
     |= many1 (elem <|> redirection)
     |. spaces
 
+let builtin =
+  succeed (fun op elems -> Ast.Builtin (op, elems))
+    |= one_of
+        [ keyword "cd"
+        ; keyword "echo"
+        ]
+    |= many (elem <|> redirection)
+    |. spaces
+
 let command =
-  simple
+  builtin <|> simple
 
 let pipeline =
   let op =
