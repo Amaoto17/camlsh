@@ -8,8 +8,7 @@ end
 
 open Parser
 open Oparse.Util
-
-let (!%) = Printf.sprintf
+open Util
 
 
 let word =

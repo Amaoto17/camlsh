@@ -1,8 +1,21 @@
 open Printf
 open Unix
 
-external (&) : ('a -> 'b) -> 'a -> 'b = "%apply"
-let (!%) = Printf.sprintf
+open Util
+
+
+module Context = struct
+  type t =
+    { mutable stdin : file_descr option
+    ; mutable stdout : file_descr option
+    }
+
+  let create () =
+    { stdin = None
+    ; stdout = None
+    }
+end
+
 
 let status_string = function
   | WEXITED n -> !% "exited %d" n
@@ -10,74 +23,112 @@ let status_string = function
   | WSTOPPED n -> !% "stopped %d" n
 
 
+let set_stdin (ctx : Context.t) src =
+  begin match ctx.stdin with
+  | None -> ()
+  | Some src' -> close src'
+  end;
+  ctx.stdin <- Some src
+
+let set_stdout (ctx : Context.t) dst =
+  begin match ctx.stdout with
+  | None -> ()
+  | Some dst' -> close dst'
+  end;
+  ctx.stdout <- Some dst
+
+
+let revert (ctx : Context.t) =
+  begin match ctx.stdin with
+  | None -> ()
+  | Some src -> close src
+  end;
+
+  begin match ctx.stdout with
+  | None -> ()
+  | Some dst -> close dst
+  end
+
+let redirect (ctx : Context.t) =
+  begin match ctx.stdin with
+  | None -> ()
+  | Some src -> dup2 src stdin
+  end;
+
+  begin match ctx.stdout with
+  | None -> ()
+  | Some dst -> dup2 dst stdout
+  end;
+
+  revert ctx
+
+
 let execute code =
   let stack = Stack.create () in
-  let rec fetch i =
+
+  let rec fetch ctx pc =
     try
-      let inst = code.(i) in
-      exec i inst
+      let inst = code.(pc) in
+      exec ctx pc inst
     with Invalid_argument _ -> ()
-  and exec i = function
+
+  and exec ctx pc = function
     | Inst.Exec ->
         let args =
           Stack.fold (fun xs x -> x :: xs) [] stack
             |> Array.of_list
         in
-        execvp args.(0) args
+        begin match fork () with
+        | 0 ->
+            redirect ctx;
+            execvp args.(0) args
+        | _ ->
+            revert ctx;
+            let (pid, status) = wait () in
+            let res = !% "pid: %d, status: %s" pid (status_string status) in
+            eprintf "%s\n%!" (res |> Deco.colorize `Green);
+            let ctx = Context.create () in
+            fetch ctx & pc + 1
+        end
 
     | Inst.Exit ->
         exit 0
 
-    | Inst.Fork ->
-        ( match fork () with
-          | 0 -> fetch (i + 2)
-          | _ -> fetch (i + 1)
-        )
+    | Inst.Jump dst ->
+        fetch ctx dst
 
-    | Inst.Jump offset ->
-        fetch & i + offset
+    | Inst.Nop ->
+        fetch ctx & pc + 1
 
     | Inst.Stdout ->
-        let dst = Stack.pop stack in
-        let fd = openfile dst [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
-        dup2 fd stdout;
-        close fd;
-        fetch (i + 1)
+        let path = Stack.pop stack in
+        let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
+        set_stdout ctx dst;
+        fetch ctx & pc + 1
 
     | Inst.Pipe ->
-        let (fd_in, fd_out) = pipe () in
-        ( match fork () with
-          | 0 ->
-              dup2 fd_out stdout;
-              close fd_out;
-              close fd_in;
-              fetch & i + 2
-          | _ ->
-              dup2 fd_in stdin;
-              close fd_in;
-              close fd_out;
-              fetch & i + 1
-        )
-
-    | Inst.Pipeopen ->
-        let (fd_in, fd_out) = pipe () in
-        ( match fork () with
-          | 0 ->
-              fetch & i + 2
-          | _ ->
-              close fd_in;
-              close fd_out;
-              fetch & i + 1
-        )
+        let (read, write) = pipe () in
+        begin match fork () with
+        | 0 ->
+            set_stdout ctx write;
+            close read;
+            fetch ctx & pc + 2
+        | _ ->
+            set_stdin ctx read;
+            close write;
+            fetch ctx & pc + 1
+        end
 
     | Inst.Push s ->
         Stack.push s stack;
-        fetch (i + 1)
+        fetch ctx & pc + 1
 
     | Inst.Wait ->
         let (pid, status) = wait () in
         let res = !% "pid: %d, status: %s" pid (status_string status) in
-        eprintf "\x1b[32m%s\x1b[m\n%!" res;
-        fetch (i + 1)
+        eprintf "%s\n%!" (res |> Deco.colorize `Green);
+        fetch ctx & pc + 1
   in
-  fetch 0
+  
+  let ctx = Context.create () in
+  fetch ctx 0

@@ -1,5 +1,5 @@
-let (!%) = Printf.sprintf
-external (&) : ('a -> 'b) -> 'a -> 'b = "%apply"
+open Util
+
 
 type t =
   | External of t list

@@ -1,6 +1,7 @@
 OCAMLINCLUDES += ../../OParse/src/
 
 FILES[] =
+  util
   ast
   inst
   parse

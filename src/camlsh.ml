@@ -1,18 +1,8 @@
 open Printf
 open Unix
 
-let (!%) = Printf.sprintf
+open Util
 
-
-module Deco = struct
-  let colorize color s =
-    match color with
-    | `Red     -> !% "\x1b[31m%s\x1b[m" s
-    | `Green   -> !% "\x1b[32m%s\x1b[m" s
-    | `Yellow  -> !% "\x1b[33m%s\x1b[m" s
-    | `Magenta -> !% "\x1b[35m%s\x1b[m" s
-    | `Cyan    -> !% "\x1b[36m%s\x1b[m" s
-end
 
 let dump_code =
   Array.iteri

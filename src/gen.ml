@@ -2,148 +2,103 @@
 
 simple:
   % ls
-  fork
-  jump 0:
-
   push "ls"
   exec
-
-  label 0:
-  wait
 
 redirection:
   % ls > file.txt
-  fork
-  jump 0:
-
-  push "file.txt"
-  open
-  stdin
   push "ls"
+  push "file.txt"
+  stdout
   exec
-
-  label 0:
-  wait
-
+    
 pipeline:
   % ls | head
-  pipe
-  jump 0:
-
-  pipe
-  jump 1:
-
-  fork
-  push "ls"
-  exec
-  wait
-
-  fork
-  push "head"
-  exec
-  wait
-
-  label 0:
-  pipewait
-
-pipeline:
-  % ls | sort | head
-    pipeopen
-    jump 0:
     pipe
-    jump 1:
-    fork
-    jump 2:
+    jump 0: ;jump to parent
+;child
     push "ls"
     exec
-    wait
     exit
-  2:
-    fork
-    jump
+;parent
+  0:
+    push "head"
+    exec
+    wait
+
+pipeline3:
+  % ls | sort | head
+    pipe
+    jump 0: ;jump to parent
+;child
+    pipe
+    jump 1: ;jump to parent
+;parent
+    push "ls"
+    exec
+    exit
+;child
     push "sort"
     exec
     wait
     exit
-  1:
-    fork
-    jump
+;parent
+  0:
     push "head"
     exec
     wait
-    exit
-  0:
-    wait
-
 
 *)
 
-external (&) : ('a -> 'b) -> 'a -> 'b = "%apply"
+open Util
+
 
 module Code = struct
-  type t =
-    { mutable seq : Inst.t list
-    ; mutable len : int
-    }
+  type t = Inst.t Arraybuffer.t
 
-  let create () = { seq = []; len = 0 }
+  let create n = Arraybuffer.create n Inst.Nop
 
-  let emit t inst =
-    t.seq <- inst :: t.seq;
-    t.len <- t.len + 1
+  let length = Arraybuffer.length
 
-  let get t =
-    List.rev t.seq |> Array.of_list
+  let to_array = Arraybuffer.contents
 
-  let append t1 t2 =
-    t1.seq <- t2.seq @ t1.seq;
-    t1.len <- t1.len + t2.len
+  let emit = Arraybuffer.add
+
+  let set = Arraybuffer.set
 end
 
 
-let rec walk_pipe t = function
-  | Ast.Pipe (left, right) ->
-      Code.emit t Inst.Pipe;
-      let sub = Code.create () in
-      walk_pipe sub left;
-      let offset = sub.len + 1 in
-      Code.emit t & Inst.Jump offset;
-      Code.append t sub;
-      walk_pipe t right
-  | node ->
-      walk t node;
-      Code.emit t Inst.Exit
+let gen_jump t1 =
+  let src = Code.length t1 in
+  Code.emit t1 & Inst.Nop;
+  fun t2 ->
+    let dst = Code.length t2 in
+    Code.set t2 src & Inst.Jump dst
 
 
-and walk t = function
+let rec walk t = function
   | Ast.External nodes ->
-      Code.emit t Inst.Fork;
-      let sub = Code.create () in
-      List.iter (walk sub) nodes;
-      let offset = sub.len + 2 in
-      Code.emit t & Inst.Jump offset;
-      Code.append t sub;
-      Code.emit t Inst.Exec;
-      Code.emit t Inst.Wait
+      List.iter (walk t) nodes;
+      Code.emit t & Inst.Exec
 
-  | Ast.Pipe _ as pipe ->
-      Code.emit t Inst.Pipeopen;
-      let sub = Code.create () in
-      walk_pipe sub pipe;
-      let offset = sub.len + 1 in
-      Code.emit t & Inst.Jump offset;
-      Code.append t sub;
-      Code.emit t Inst.Wait
+  | Ast.Pipe (left, right) ->
+      Code.emit t & Inst.Pipe;
+      let parent = gen_jump t in
+      walk t left;
+      Code.emit t & Inst.Exit;
+      parent t;
+      walk t right;
+      Code.emit t & Inst.Wait
 
   | Ast.Stdout path ->
       Code.emit t & Inst.Push path;
-      Code.emit t Inst.Stdout
+      Code.emit t & Inst.Stdout
 
-  | Ast.Word w ->
-      Code.emit t & Inst.Push w
+  | Ast.Word s ->
+      Code.emit t & Inst.Push s
 
 
 let compile ast =
-  let t = Code.create () in
+  let t = Code.create 64 in
   walk t ast;
-  Code.get t
+  Code.to_array t
