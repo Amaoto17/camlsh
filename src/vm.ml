@@ -8,13 +8,17 @@ module Context = struct
   type t =
     { mutable stdin : file_descr option
     ; mutable stdout : file_descr option
+    ; mutable status : int
     }
 
   let create () =
     { stdin = None
     ; stdout = None
+    ; status = 0
     }
 end
+
+open Context
 
 
 let status_string = function
@@ -76,7 +80,23 @@ let redir_bt (ctx : Context.t) =
   end
 
 
-let exec_builtin args = function
+let pop_all stack =
+  let rec loop acc =
+    if Stack.is_empty stack then acc
+    else
+      let elem = Stack.pop stack in
+      loop (elem :: acc)
+  in
+  loop [] |> Array.of_list
+
+
+let dump_stack stack =
+  eprintf "%s" ("  Stack:" |> Deco.colorize `Gray);
+  Stack.iter (fun s -> s |> !% " (%s)" |> Deco.colorize `Gray |> eprintf "%s") stack;
+  eprintf "\n%!"
+
+
+let exec_builtin ctx args = function
   | "cd" ->
       let len = Array.length args in
       let dst =
@@ -90,6 +110,12 @@ let exec_builtin args = function
       let s = args |> Array.to_list |> String.concat " " in
       printf "%s\n%!" s
 
+  | "false" ->
+      ctx.status <- 1
+
+  | "true" ->
+      ctx.status <- 0
+
   | _ -> failwith "invalid builtin command"
 
 
@@ -98,28 +124,34 @@ let execute code =
 
   let rec fetch ctx pc =
     try
-      let s = !% "fetch [%d]" pc in
+      let s = !% "fetch [%02d]" pc in
       eprintf "%s\n%!" (s |> Deco.colorize `Gray);
+      dump_stack stack;
       let inst = code.(pc) in
       exec ctx pc inst
-    with Invalid_argument _ -> ()
+
+    with Invalid_argument _ ->
+      failwith "invalid address"
+
 
   and exec ctx pc = function
+    | Inst.And ->
+        let status = ctx.status in
+        if status = 0 then fetch ctx & pc + 2
+        else fetch ctx & pc + 1
+
     | Inst.Builtin op ->
-        let args =
-          Stack.fold (fun xs x -> x :: xs) [] stack
-            |> Array.of_list
-        in
+        let args = pop_all stack in
         let closer = redir_bt ctx in
-        exec_builtin args op;
+        exec_builtin ctx args op;
         closer ();
         fetch ctx & pc + 1
 
+    | Inst.End ->
+        ()
+
     | Inst.Exec ->
-        let args =
-          Stack.fold (fun xs x -> x :: xs) [] stack
-            |> Array.of_list
-        in
+        let args = pop_all stack in
         begin match fork () with
         | 0 ->
             redirect ctx;
@@ -129,7 +161,13 @@ let execute code =
             let (pid, status) = wait () in
             let res = !% "(exec) pid: %d, status: %s" pid (status_string status) in
             eprintf "%s\n%!" (res |> Deco.colorize `Green);
-            let ctx = Context.create () in
+            let n =
+              match status with
+              | WEXITED n -> n
+              | WSIGNALED n -> n + 128
+              | WSTOPPED n -> n + 128
+            in
+            ctx.status <- n;
             fetch ctx & pc + 1
         end
 
@@ -147,6 +185,11 @@ let execute code =
         let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
         set_stdout ctx dst;
         fetch ctx & pc + 1
+
+    | Inst.Or ->
+        let status = ctx.status in
+        if status = 0 then fetch ctx & pc + 1
+        else fetch ctx & pc + 2
 
     | Inst.Pipe ->
         let (read, write) = pipe () in

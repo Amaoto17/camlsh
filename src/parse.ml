@@ -14,7 +14,7 @@ open Util
 let word =
   one_of
     [ succeed identity
-        |= many1 (not_in_class " |<>\n\r\t")
+        |= many1 (not_in_class " |<>;\n\r\t")
         |> concat
     ; expect "word"
     ]
@@ -50,6 +50,8 @@ let builtin =
     |= one_of
         [ keyword "cd"
         ; keyword "echo"
+        ; keyword "false"
+        ; keyword "true"
         ]
     |= many (elem <|> redirection)
     |. spaces
@@ -57,18 +59,37 @@ let builtin =
 let command =
   builtin <|> simple
 
+let control =
+  one_of
+    [ succeed (fun com -> Ast.And com)
+        |. keyword "and"
+        |= command
+    ; succeed (fun com -> Ast.Or com)
+        |. keyword "or"
+        |= command
+    ; command
+    ]
+
 let pipeline =
   let op =
     succeed (fun l r -> Ast.Pipe (l, r))
       |. char '|'
       |. spaces
   in
-  chainl command op
+  chainl control op
+
+let sequence =
+  succeed (fun coms -> Ast.Seq coms)
+    |= sep_end_by1
+        ( char ';'
+            |. spaces
+        )
+        pipeline
 
 let program =
   succeed identity
     |. spaces
-    |= pipeline
+    |= sequence
     |. eof
 
 

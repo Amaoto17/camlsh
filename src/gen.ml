@@ -79,6 +79,12 @@ let insert_jump t pos =
 
 
 let rec walk t = function
+  | Ast.And node ->
+      Code.emit t & Inst.And;
+      let _end = reserve t in
+      walk t node;
+      insert_jump t _end
+
   | Ast.Builtin (op, nodes) ->
       List.iter (walk t) nodes;
       Code.emit t & Inst.Builtin op
@@ -86,6 +92,12 @@ let rec walk t = function
   | Ast.External nodes ->
       List.iter (walk t) nodes;
       Code.emit t & Inst.Exec
+
+  | Ast.Or node ->
+      Code.emit t & Inst.Or;
+      let _end = reserve t in
+      walk t node;
+      insert_jump t _end
 
   | Ast.Pipe (left, right) ->
       Code.emit t & Inst.Pipe;
@@ -95,6 +107,9 @@ let rec walk t = function
       insert_jump t parent;
       walk t right;
       Code.emit t & Inst.Wait
+
+  | Ast.Seq nodes ->
+      List.iter (walk t) nodes
 
   | Ast.Stdout path ->
       Code.emit t & Inst.Push path;
@@ -107,4 +122,5 @@ let rec walk t = function
 let compile ast =
   let t = Code.create 64 in
   walk t ast;
+  Code.emit t & Inst.End;
   Code.to_array t
