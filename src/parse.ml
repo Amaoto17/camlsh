@@ -59,7 +59,22 @@ let builtin =
 let command =
   builtin <|> simple
 
-let control =
+let rec block = fun st -> (|>) st &
+  let rec loop acc =
+    one_of
+      [ succeed acc
+          |. keyword "end"
+          |> map List.rev
+      ; pipeline
+          |. char ';'
+          |. spaces
+          |> and_then (fun x -> x :: acc |> loop)
+      ; expect "end of block"
+      ]
+  in
+  loop []
+
+and control = fun st -> (|>) st &
   one_of
     [ succeed (fun com -> Ast.And com)
         |. keyword "and"
@@ -67,10 +82,13 @@ let control =
     ; succeed (fun com -> Ast.Or com)
         |. keyword "or"
         |= command
+    ; succeed (fun coms -> Ast.Block coms)
+        |. keyword "begin"
+        |= block
     ; command
     ]
 
-let pipeline =
+and pipeline = fun st -> (|>) st &
   let op =
     succeed (fun l r -> Ast.Pipe (l, r))
       |. char '|'

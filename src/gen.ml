@@ -85,6 +85,14 @@ let rec walk t = function
       walk t node;
       insert_jump t _end
 
+  | Ast.Block nodes ->
+      Code.emit t & Inst.Block;
+      let _end = reserve t in
+      List.iter (walk t) nodes;
+      Code.emit t & Inst.Exit;
+      insert_jump t _end;
+      Code.emit t & Inst.End
+
   | Ast.Builtin (op, nodes) ->
       List.iter (walk t) nodes;
       Code.emit t & Inst.Builtin op
@@ -122,5 +130,5 @@ let rec walk t = function
 let compile ast =
   let t = Code.create 64 in
   walk t ast;
-  Code.emit t & Inst.End;
+  Code.emit t & Inst.Leave;
   Code.to_array t

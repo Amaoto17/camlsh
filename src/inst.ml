@@ -3,11 +3,13 @@ open Util
 
 type t =
   | And
+  | Block
   | Builtin of string
   | End
   | Exec
   | Exit
   | Jump of int
+  | Leave
   | Nop
   | Stdout
   | Or
@@ -17,11 +19,13 @@ type t =
 
 let show = function
   | And -> "and"
+  | Block -> "block"
   | Builtin op -> !% "builtin %s" op
   | End -> "end"
   | Exec -> "exec"
   | Exit -> "exit"
-  | Jump pos -> !% "jump -> %d" pos
+  | Jump pos -> !% "jump -> %02d" pos
+  | Leave -> "leave"
   | Nop -> "nop"
   | Or -> "or"
   | Pipe -> "pipe"
