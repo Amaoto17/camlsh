@@ -87,9 +87,7 @@ let rec walk t = function
 
   | Ast.Block nodes ->
       Code.emit t & Inst.Block;
-      let _end = reserve t in
       List.iter (walk t) nodes;
-      insert_jump t _end;
       Code.emit t & Inst.End
 
   | Ast.Builtin (op, nodes) ->

@@ -43,6 +43,7 @@ module Ctx = struct
   type t =
     { mutable status : int
     ; mutable redir_chain : (unit -> unit)
+    ; mutable post_process : (unit -> unit)
     ; mutable stack : string Stack.t
     ; vars : vars
     }
@@ -68,6 +69,7 @@ module Ctx = struct
   let create () =
     { status = 0
     ; redir_chain = (fun () -> ())
+    ; post_process = (fun () -> ())
     ; stack = Stack.create ()
     ; vars =
         { builtin = Env.create ()
@@ -94,12 +96,22 @@ module Ctx = struct
   let redirect t =
     t.redir_chain ()
 
+  let add_post_process t thunk =
+    let rest = t.post_process in
+    t.post_process <- (fun () -> thunk (); rest ())
+
+  let post_process t =
+    t.post_process ();
+    t.post_process <- (fun () -> ())
+
   let safe_redirect t =
     let saved_stdout = dup stdout in
     redirect t;
-    fun () ->
+    let thunk = fun () ->
       dup2 saved_stdout stdout;
       close saved_stdout
+    in
+    thunk
 
   (* stack operation *)
 
@@ -202,14 +214,10 @@ let execute ctx code =
         else fetch ctx & pc + 1
 
     | Inst.Block ->
-        begin match fork () with
-        | 0 ->
-            Ctx.redirect ctx;
-            Ctx.reset_redir ctx;
-            fetch ctx & pc + 2
-        | _ ->
-            fetch ctx & pc + 1
-        end
+        let clean = Ctx.safe_redirect ctx in
+        Ctx.reset_redir ctx;
+        Ctx.add_post_process ctx clean;
+        fetch ctx & pc + 1
 
     | Inst.Builtin com ->
         let args = Ctx.pop_all ctx in
@@ -219,6 +227,7 @@ let execute ctx code =
         fetch ctx & pc + 1
 
     | Inst.End ->
+        Ctx.post_process ctx;
         fetch ctx & pc + 1
 
     | Inst.Exec ->
