@@ -134,6 +134,10 @@ module Ctx = struct
     let local = t.vars.local in
     t.vars.local <- Env.new_env local
 
+  let delete_env t =
+    let local = t.vars.local in
+    t.vars.local <- Env.delete_env local
+
   let find t key =
     match Env.find t.vars.local key with
     | Some v -> Some v
@@ -166,9 +170,7 @@ let wait_child ctx =
 
 
 let init ctx =
-  Ctx.new_env ctx;
-  Ctx.set_local ctx "var" "abc"
-
+  Ctx.new_env ctx
 
 let exec_builtin ctx args = function
   | "cd" ->
@@ -217,6 +219,7 @@ let execute ctx code =
         let clean = Ctx.safe_redirect ctx in
         Ctx.reset_redir ctx;
         Ctx.add_post_process ctx clean;
+        Ctx.new_env ctx;
         fetch ctx & pc + 1
 
     | Inst.Builtin com ->
@@ -228,6 +231,7 @@ let execute ctx code =
 
     | Inst.End ->
         Ctx.post_process ctx;
+        Ctx.delete_env ctx;
         fetch ctx & pc + 1
 
     | Inst.Exec ->
