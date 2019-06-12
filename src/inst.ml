@@ -15,6 +15,7 @@ type t =
   | Or
   | Pipe
   | Push of string
+  | Var
   | Wait
 
 let show = function
@@ -31,4 +32,5 @@ let show = function
   | Pipe -> "pipe"
   | Stdout -> "stdout"
   | Push s -> !% "push %S" s
+  | Var -> "var"
   | Wait -> "wait"

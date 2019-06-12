@@ -89,7 +89,6 @@ let rec walk t = function
       Code.emit t & Inst.Block;
       let _end = reserve t in
       List.iter (walk t) nodes;
-      Code.emit t & Inst.Exit;
       insert_jump t _end;
       Code.emit t & Inst.End
 
@@ -100,6 +99,10 @@ let rec walk t = function
   | Ast.External nodes ->
       List.iter (walk t) nodes;
       Code.emit t & Inst.Exec
+
+  | Ast.Identifier name ->
+      Code.emit t & Inst.Push name;
+      Code.emit t & Inst.Var
 
   | Ast.Or node ->
       Code.emit t & Inst.Or;

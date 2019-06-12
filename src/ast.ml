@@ -6,6 +6,7 @@ type t =
   | Block of t list
   | Builtin of string * t list
   | External of t list
+  | Identifier of string
   | Or of t
   | Pipe of t * t
   | Seq of t list
@@ -24,6 +25,8 @@ let rec show = function
   | External nodes ->
       !% "(external %s)"
         & nodes |> List.map show |> String.concat " "
+  | Identifier name ->
+      !% "(identifier %s)" name
   | Or node ->
       !% "(or %s)" (show node)
   | Pipe (l, r) ->

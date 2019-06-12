@@ -4,12 +4,53 @@ open Unix
 open Util
 
 
+module Env = struct
+  type t =
+    { vars : (string, string) Hashtbl.t
+    ; outer : t option
+    }
+
+  let create () =
+    { vars = Hashtbl.create 64
+    ; outer = None
+    }
+
+  let new_env t =
+    let new_env = create () in
+    { new_env with outer = Some t }
+
+  let delete_env t =
+    match t.outer with
+    | None -> failwith "no outer environment"
+    | Some env -> env
+
+  let rec find t key =
+    match Hashtbl.find_opt t.vars key with
+    | Some v -> Some v
+    | None ->
+        match t.outer with
+        | None -> None
+        | Some env -> find env key
+
+  let set t key v =
+    match find t key with
+    | None -> Hashtbl.add t.vars key v
+    | Some _ -> Hashtbl.replace t.vars key v
+end
+
+
 module Ctx = struct
   type t =
     { mutable status : int
     ; mutable redir_chain : (unit -> unit)
-    ; mutable redir_len : int
     ; mutable stack : string Stack.t
+    ; vars : vars
+    }
+
+  and vars =
+    { builtin : Env.t
+    ; global : Env.t
+    ; mutable local : Env.t
     }
 
   let show t =
@@ -22,14 +63,17 @@ module Ctx = struct
           Buffer.add_string buf " |"
       )
       t.stack;
-    let s = Buffer.contents buf in
-    !% "redir: %d\n%s" t.redir_len s
+    Buffer.contents buf
 
   let create () =
     { status = 0
     ; redir_chain = (fun () -> ())
-    ; redir_len = 0
     ; stack = Stack.create ()
+    ; vars =
+        { builtin = Env.create ()
+        ; global = Env.create ()
+        ; local = Env.create ()
+        }
     }
 
   (* TODO: ctx.status should be implemented as shell variable. *)
@@ -42,17 +86,13 @@ module Ctx = struct
 
   let add_redir t thunk =
     let rest = t.redir_chain in
-    t.redir_chain <- (fun () -> rest (); thunk ());
-    let len = t.redir_len in
-    t.redir_len <- len + 1
+    t.redir_chain <- (fun () -> rest (); thunk ())
 
   let reset_redir t =
-    t.redir_chain <- (fun () -> ());
-    t.redir_len <- 0
+    t.redir_chain <- (fun () -> ())
 
   let redirect t =
-    t.redir_chain ();
-    t.redir_len <- 0
+    t.redir_chain ()
 
   let safe_redirect t =
     let saved_stdout = dup stdout in
@@ -75,6 +115,25 @@ module Ctx = struct
         elem :: acc |> loop
     in
     loop [] |> Array.of_list
+
+  (* handling variables *)
+
+  let new_env t =
+    let local = t.vars.local in
+    t.vars.local <- Env.new_env local
+
+  let find t key =
+    match Env.find t.vars.local key with
+    | Some v -> Some v
+    | None ->
+        match Env.find t.vars.global key with
+        | Some v -> Some v
+        | None ->
+            match Env.find t.vars.builtin key with
+            | Some v -> Some v
+            | None -> None
+
+  let set_local t = Env.set t.vars.local
 end
 
 
@@ -92,7 +151,12 @@ let wait_child ctx =
   let res = !% "pid: %d, status: %s" pid (status_string status) in
   eprintf "%s\n%!" (res |> Deco.colorize `Green);
   status_num status |> Ctx.set_status ctx
-  
+
+
+let init ctx =
+  Ctx.new_env ctx;
+  Ctx.set_local ctx "var" "abc"
+
 
 let exec_builtin ctx args = function
   | "cd" ->
@@ -111,12 +175,15 @@ let exec_builtin ctx args = function
   | "false" ->
       Ctx.set_status ctx 1
 
+  | "set" ->
+      Ctx.set_local ctx args.(0) args.(1)
+
   | "true" ->
       Ctx.set_status ctx 0
 
   | com -> failwith (!% "invalid builtin command %S" com)
 
-let execute code =
+let execute ctx code =
   let rec fetch ctx pc =
     try
       let inst = code.(pc) in
@@ -136,8 +203,12 @@ let execute code =
 
     | Inst.Block ->
         begin match fork () with
-        | 0 -> fetch ctx & pc + 2
-        | _ -> fetch ctx & pc + 1
+        | 0 ->
+            Ctx.redirect ctx;
+            Ctx.reset_redir ctx;
+            fetch ctx & pc + 2
+        | _ ->
+            fetch ctx & pc + 1
         end
 
     | Inst.Builtin com ->
@@ -148,7 +219,6 @@ let execute code =
         fetch ctx & pc + 1
 
     | Inst.End ->
-        wait_child ctx;
         fetch ctx & pc + 1
 
     | Inst.Exec ->
@@ -214,237 +284,19 @@ let execute code =
         Ctx.add_redir ctx thunk;
         fetch ctx & pc + 1
 
+    | Inst.Var ->
+        let name = Ctx.pop ctx in
+        let res =
+          match Ctx.find ctx name with
+          | None -> ""
+          | Some s -> s
+        in
+        Ctx.push ctx res;
+        fetch ctx & pc + 1
+
     | Inst.Wait ->
         wait_child ctx;
         fetch ctx & pc + 1
   in
 
-  let ctx = Ctx.create () in
   fetch ctx 0
-
-
-(* module Context = struct
-  type t =
-    { mutable stdin : file_descr option
-    ; mutable stdout : file_descr option
-    ; mutable status : int
-    }
-
-  let create () =
-    { stdin = None
-    ; stdout = None
-    ; status = 0
-    }
-end
-
-open Context
-
-
-let status_string = function
-  | WEXITED n -> !% "exited %d" n
-  | WSIGNALED n -> !% "signaled %d" n
-  | WSTOPPED n -> !% "stopped %d" n
-
-
-let set_stdin (ctx : Context.t) src =
-  begin match ctx.stdin with
-  | None -> ()
-  | Some src' -> close src'
-  end;
-  ctx.stdin <- Some src
-
-let set_stdout (ctx : Context.t) dst =
-  begin match ctx.stdout with
-  | None -> ()
-  | Some dst' -> close dst'
-  end;
-  ctx.stdout <- Some dst
-
-
-let revert (ctx : Context.t) =
-  begin match ctx.stdin with
-  | None -> ()
-  | Some src -> close src
-  end;
-
-  begin match ctx.stdout with
-  | None -> ()
-  | Some dst -> close dst
-  end
-
-let redirect (ctx : Context.t) =
-  begin match ctx.stdin with
-  | None -> ()
-  | Some src -> dup2 src stdin
-  end;
-
-  begin match ctx.stdout with
-  | None -> ()
-  | Some dst -> dup2 dst stdout
-  end;
-
-  revert ctx
-
-let redir_bt (ctx : Context.t) =
-  begin match ctx.stdout with
-  | None ->
-      fun () -> ()
-  | Some dst ->
-      let saved_stdout = dup stdout in
-      dup2 dst stdout;
-      close dst;
-      fun () ->
-        dup2 saved_stdout stdout;
-        close saved_stdout;
-  end
-
-
-let pop_all stack =
-  let rec loop acc =
-    if Stack.is_empty stack then acc
-    else
-      let elem = Stack.pop stack in
-      loop (elem :: acc)
-  in
-  loop [] |> Array.of_list
-
-
-let dump_stack stack =
-  eprintf "%s" ("  Stack:" |> Deco.colorize `Gray);
-  Stack.iter (fun s -> s |> !% " (%s)" |> Deco.colorize `Gray |> eprintf "%s") stack;
-  eprintf "\n%!"
-
-
-let exec_builtin ctx args = function
-  | "cd" ->
-      let len = Array.length args in
-      let dst =
-        if len = 0 then getenv "HOME"
-        else if len = 1 then args.(0)
-        else failwith "cd: too many arguments"
-      in
-      chdir dst
-
-  | "echo" ->
-      let s = args |> Array.to_list |> String.concat " " in
-      printf "%s\n%!" s
-
-  | "false" ->
-      ctx.status <- 1
-
-  | "true" ->
-      ctx.status <- 0
-
-  | _ -> failwith "invalid builtin command"
-
-
-let execute code =
-  let stack = Stack.create () in
-
-  let rec fetch ctx pc =
-    try
-      let s = !% "fetch [%02d]" pc in
-      eprintf "%s\n%!" (s |> Deco.colorize `Gray);
-      dump_stack stack;
-      let inst = code.(pc) in
-      exec ctx pc inst
-
-    with Invalid_argument _ ->
-      failwith "invalid address"
-
-
-  and exec ctx pc = function
-    | Inst.And ->
-        let status = ctx.status in
-        if status = 0 then fetch ctx & pc + 2
-        else fetch ctx & pc + 1
-
-    | Inst.Block ->
-        begin match fork () with
-        | 0 -> fetch ctx & pc + 2
-        | _ -> fetch ctx & pc + 1
-        end
-
-    | Inst.Builtin op ->
-        let args = pop_all stack in
-        let closer = redir_bt ctx in
-        exec_builtin ctx args op;
-        closer ();
-        fetch ctx & pc + 1
-
-    | Inst.Exec ->
-        let args = pop_all stack in
-        begin match fork () with
-        | 0 ->
-            redirect ctx;
-            execvp args.(0) args
-        | _ ->
-            revert ctx;
-            let (pid, status) = wait () in
-            let res = !% "(exec) pid: %d, status: %s" pid (status_string status) in
-            eprintf "%s\n%!" (res |> Deco.colorize `Green);
-            let n =
-              match status with
-              | WEXITED n -> n
-              | WSIGNALED n -> n + 128
-              | WSTOPPED n -> n + 128
-            in
-            ctx.status <- n;
-            fetch ctx & pc + 1
-        end
-
-    | Inst.End ->
-        let (pid, status) = wait () in
-        let res = !% "(end) pid: %d, status: %s" pid (status_string status) in
-        eprintf "%s\n%!" (res |> Deco.colorize `Green);
-        fetch ctx & pc + 1
-
-    | Inst.Exit ->
-        exit 0
-
-    | Inst.Jump dst ->
-        fetch ctx dst
-
-    | Inst.Leave ->
-        ()
-
-    | Inst.Nop ->
-        fetch ctx & pc + 1
-
-    | Inst.Stdout ->
-        let path = Stack.pop stack in
-        let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
-        set_stdout ctx dst;
-        fetch ctx & pc + 1
-
-    | Inst.Or ->
-        let status = ctx.status in
-        if status = 0 then fetch ctx & pc + 1
-        else fetch ctx & pc + 2
-
-    | Inst.Pipe ->
-        let (read, write) = pipe () in
-        begin match fork () with
-        | 0 ->
-            set_stdout ctx write;
-            close read;
-            fetch ctx & pc + 2
-        | _ ->
-            set_stdin ctx read;
-            close write;
-            fetch ctx & pc + 1
-        end
-
-    | Inst.Push s ->
-        Stack.push s stack;
-        fetch ctx & pc + 1
-
-    | Inst.Wait ->
-        let (pid, status) = wait () in
-        let res = !% "(wait) pid: %d, status: %s" pid (status_string status) in
-        eprintf "%s\n%!" (res |> Deco.colorize `Green);
-        fetch ctx & pc + 1
-  in
-  
-  let ctx = Context.create () in
-  fetch ctx 0 *)

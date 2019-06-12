@@ -14,7 +14,7 @@ open Util
 let word =
   one_of
     [ succeed identity
-        |= many1 (not_in_class " |<>;\n\r\t")
+        |= many1 (not_in_class " |<>;$\n\r\t")
         |> concat
     ; expect "word"
     ]
@@ -30,9 +30,25 @@ let keyword s =
     ]
     |. spaces
 
+let identifier =
+  one_of
+    [ succeed List.cons
+        |= (letter <|> char '_')
+        |= many (alpha_num <|> char '_')
+        |> concat
+    ; expect "identifier"
+    ]
+    |. spaces
+
 let elem =
-  succeed (fun w -> Ast.Word w)
-    |= word
+  one_of
+    [ succeed (fun s -> Ast.Identifier s)
+        |. char '$'
+        |. spaces
+        |= identifier
+    ; succeed (fun s -> Ast.Word s)
+        |= word
+    ]
 
 let redirection =
   succeed (fun path -> Ast.Stdout path)
@@ -51,6 +67,7 @@ let builtin =
         [ keyword "cd"
         ; keyword "echo"
         ; keyword "false"
+        ; keyword "set"
         ; keyword "true"
         ]
     |= many (elem <|> redirection)

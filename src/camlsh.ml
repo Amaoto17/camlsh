@@ -16,6 +16,8 @@ let dump_code =
 
 
 let main =
+  let ctx = Vm.Ctx.create () in
+  Vm.init ctx;
   while true do
     printf "[%s]\n" (getcwd () |> Deco.colorize `Yellow);
     printf "%% ";
@@ -25,8 +27,8 @@ let main =
       | Ok ast ->
           eprintf "%s\n%!" (Ast.show ast |> Deco.colorize `Cyan);
           let code = Gen.compile ast in
-          dump_code code
-          (* Vm.execute code *)
+          dump_code code;
+          Vm.execute ctx code
       | Error msg ->
           eprintf "%s\n%!" (msg |> Deco.colorize `Red)
     with End_of_file -> exit 0
