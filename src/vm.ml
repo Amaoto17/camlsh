@@ -6,7 +6,7 @@ open Util
 
 module Env = struct
   type t =
-    { vars : (string, string) Hashtbl.t
+    { vars : (string, string array) Hashtbl.t
     ; outer : t option
     }
 
@@ -190,7 +190,11 @@ let exec_builtin ctx args = function
       Ctx.set_status ctx 1
 
   | "set" ->
-      Ctx.set_local ctx args.(0) args.(1)
+      let argc = Array.length args in
+      if argc = 0 then ()
+      else
+        let v = Array.sub args 1 (argc - 1) in
+        Ctx.set_local ctx args.(0) v
 
   | "true" ->
       Ctx.set_status ctx 0
@@ -299,12 +303,10 @@ let execute ctx code =
 
     | Inst.Var ->
         let name = Ctx.pop ctx in
-        let res =
-          match Ctx.find ctx name with
-          | None -> ""
-          | Some s -> s
-        in
-        Ctx.push ctx res;
+        begin match Ctx.find ctx name with
+        | None -> Ctx.push ctx ""
+        | Some arr -> Array.iter (Ctx.push ctx) arr
+        end;
         fetch ctx & pc + 1
 
     | Inst.Wait ->
