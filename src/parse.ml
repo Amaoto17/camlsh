@@ -80,8 +80,9 @@ let rec block = fun st -> (|>) st &
   let rec loop acc =
     one_of
       [ succeed acc
-          |. keyword "end"
+          |. look_ahead (keyword "end" <|> keyword "do")
           |> map List.rev
+          |> map (fun coms -> Ast.Compound coms)
       ; pipeline
           |. char ';'
           |. spaces
@@ -102,29 +103,38 @@ and control = fun st -> (|>) st &
     ; succeed (fun coms -> Ast.Block coms)
         |. keyword "begin"
         |= block
+        |. keyword "end"
+    ; succeed (fun cond body -> Ast.While (cond, body))
+        |. keyword "while"
+        |= block
+        |. keyword "do"
+        |= block
+        |. keyword "end"
     ; command
     ]
 
 and pipeline = fun st -> (|>) st &
   let op =
-    succeed (fun l r -> Ast.Pipe (l, r))
+    succeed (fun left right -> Ast.Pipe (left, right))
       |. char '|'
       |. spaces
   in
   chainl control op
 
-let sequence =
-  succeed (fun coms -> Ast.Seq coms)
+and compound = fun st -> (|>) st &
+  let delimiter =
+    char ';'
+      |. spaces
+  in
+  succeed (fun coms -> Ast.Compound coms)
     |= sep_end_by1
-        ( char ';'
-            |. spaces
-        )
+        delimiter
         pipeline
 
 let program =
   succeed identity
     |. spaces
-    |= sequence
+    |= compound
     |. eof
 
 

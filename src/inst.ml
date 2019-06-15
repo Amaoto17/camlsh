@@ -16,6 +16,7 @@ type t =
   | Push of string
   | Var
   | Wait
+  | While
 
 let show = function
   | And -> "and"
@@ -32,3 +33,4 @@ let show = function
   | Push s -> !% "push %S" s
   | Var -> "var"
   | Wait -> "wait"
+  | While -> "while"

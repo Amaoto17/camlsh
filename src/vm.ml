@@ -43,7 +43,7 @@ module Ctx = struct
   type t =
     { mutable status : int
     ; mutable stack : string Stack.t
-    ; redir : redir
+    ; mutable redir : redir
     ; vars : vars
     }
 
@@ -125,10 +125,12 @@ module Ctx = struct
   let safe_redirection t =
     let stdin' = dup stdin in
     let stdout' = dup stdout in
+    let redir = t.redir in
     do_redirection t;
     let thunk () =
       dup2_close stdin' stdin;
-      dup2_close stdout' stdout
+      dup2_close stdout' stdout;
+      t.redir <- redir
     in
     thunk
 
@@ -321,6 +323,14 @@ let execute ctx code =
 
     | Inst.Wait ->
         wait_child ctx;
+        fetch ctx & pc + 1
+
+    | Inst.While ->
+        let return = Ctx.safe_redirection ctx in
+        Ctx.new_env ctx;
+        fetch ctx & pc + 2;
+        Ctx.delete_env ctx;
+        return ();
         fetch ctx & pc + 1
   in
 

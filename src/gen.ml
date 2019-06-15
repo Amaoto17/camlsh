@@ -85,15 +85,19 @@ let rec walk t = function
       walk t node;
       insert_jump t _end
 
-  | Ast.Block nodes ->
+  | Ast.Block node ->
       Code.emit t & Inst.Block;
       let _end = reserve t in
-      List.iter (walk t) nodes;
+      walk t node;
+      Code.emit t & Inst.Leave;
       insert_jump t _end
 
   | Ast.Builtin (op, nodes) ->
       List.iter (walk t) nodes;
       Code.emit t & Inst.Builtin op
+
+  | Ast.Compound nodes ->
+      List.iter (walk t) nodes
 
   | Ast.External nodes ->
       List.iter (walk t) nodes;
@@ -118,12 +122,22 @@ let rec walk t = function
       walk t right;
       Code.emit t & Inst.Wait
 
-  | Ast.Seq nodes ->
-      List.iter (walk t) nodes
-
   | Ast.Stdout path ->
       Code.emit t & Inst.Push path;
       Code.emit t & Inst.Stdout
+
+  | Ast.While (cond, body) ->
+      Code.emit t & Inst.While;
+      let _end = reserve t in
+      let _start = Code.length t in
+      walk t cond;
+      Code.emit t & Inst.And;
+      let _break = reserve t in
+      walk t body;
+      Code.emit t & Inst.Jump _start;
+      insert_jump t _break;
+      Code.emit t & Inst.Leave;
+      insert_jump t _end
 
   | Ast.Word s ->
       Code.emit t & Inst.Push s

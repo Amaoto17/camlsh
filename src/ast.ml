@@ -3,21 +3,24 @@ open Util
 
 type t =
   | And of t
-  | Block of t list
+  | Block of t
   | Builtin of string * t list
+  | Compound of t list
   | External of t list
   | Identifier of string
   | Or of t
   | Pipe of t * t
-  | Seq of t list
   | Stdout of string
+  | While of t * t
   | Word of string
 
 let rec show = function
   | And node ->
       !% "(and %s)" (show node)
-  | Block nodes ->
-      !% "(block %s)"
+  | Block node ->
+      !% "(block %s)" (show node)
+  | Compound nodes ->
+      !% "%s"
         & nodes |> List.map show |> String.concat " "
   | Builtin (op, nodes) ->
       !% "(builtin %s %s)" op
@@ -29,13 +32,11 @@ let rec show = function
       !% "(identifier %s)" name
   | Or node ->
       !% "(or %s)" (show node)
-  | Pipe (l, r) ->
-      !% "(pipe (%s %s))"
-        (show l) (show r)
-  | Seq nodes ->
-      !% "%s"
-        & nodes |> List.map show |> String.concat "; "
+  | Pipe (left, right) ->
+      !% "(pipe %s %s)" (show left) (show right)
   | Stdout path ->
       !% "(> %s)" path
-  | Word w ->
-      w
+  | While (cond, body) ->
+      !% "(while %s %s)" (show cond) (show body)
+  | Word s ->
+      s
