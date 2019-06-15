@@ -48,6 +48,10 @@ let set ctx argc argv =
   if argc = 1 then
     1
   else
-    let v = Array.sub argv 2 (argc - 2) in
-    Ctx.set_local ctx argv.(1) v;
-    0
+    try
+      let v = Array.sub argv 2 (argc - 2) in
+      Ctx.set_local ctx argv.(1) v;
+      0
+    with Failure s ->
+      eprintf "%s\n%!" s;
+      1

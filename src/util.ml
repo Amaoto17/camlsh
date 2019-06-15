@@ -58,10 +58,10 @@ module Arraybuffer = struct
 end
 
 module Env = struct
-  type t =
-    { vars : (string, string array) Hashtbl.t
-    ; parent : t option
-    ; outer : t option
+  type 'a t =
+    { vars : (string, 'a) Hashtbl.t
+    ; parent : 'a t option
+    ; outer : 'a t option
     }
 
   let create () =

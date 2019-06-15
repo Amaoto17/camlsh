@@ -4,8 +4,7 @@ open Unix
 
 
 type t =
-  { mutable status : int
-  ; mutable stack : string Stack.t
+  { mutable stack : string Stack.t
   ; mutable loop_stack : (int * int) Stack.t
   ; mutable redir : redir
   ; vars : vars
@@ -17,9 +16,9 @@ and redir =
   }
 
 and vars =
-  { builtin : Env.t
-  ; global : Env.t
-  ; mutable local : Env.t
+  { builtin : string array Env.t
+  ; global : string array Env.t
+  ; mutable local : string array Env.t
   }
 
 let show t =
@@ -35,8 +34,7 @@ let show t =
   Buffer.contents buf
 
 let create () =
-  { status = 0
-  ; stack = Stack.create ()
+  { stack = Stack.create ()
   ; loop_stack = Stack.create ()
   ; redir =
       { input = None
@@ -48,12 +46,6 @@ let create () =
       ; local = Env.create ()
       }
   }
-
-(* TODO: ctx.status should be implemented as shell variable. *)
-
-let get_status t = t.status
-
-let set_status t status = t.status <- status
 
 (* handling variables *)
 
@@ -84,7 +76,20 @@ let find t key =
           | Some v -> Some v
           | None -> None
 
-let set_local t = Env.set t.vars.local
+
+let set_builtin t = Env.set t.vars.builtin
+
+let get_status t =
+  match Env.find t.vars.builtin "status" with
+  | None -> failwith "'status' was not found"
+  | Some v -> v.(0)
+
+let set_status t v = Env.set t.vars.builtin "status" [|string_of_int v|]
+
+let set_local t key v =
+  match Env.find t.vars.builtin key with
+  | None -> Env.set t.vars.local key v
+  | Some _ -> failwith "'status' is read-only variable"
 
 (* redirection *)
 
@@ -175,3 +180,10 @@ let loop_start t =
 let loop_end t =
   if Stack.is_empty t.loop_stack then None
   else let (_, ed) = Stack.top t.loop_stack in Some ed
+
+
+(* initialization *)
+
+let init t =
+  set_builtin t "status" [|"0"|];
+  new_env t

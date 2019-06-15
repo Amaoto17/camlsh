@@ -105,7 +105,7 @@ let execute ctx code =
 
     | Inst.If ->
         let status = Ctx.get_status ctx in
-        if status = 0 then fetch ctx & pc + 2
+        if status = "0" then fetch ctx & pc + 2
         else fetch ctx & pc + 1
 
     | Inst.Jump dst ->
@@ -146,7 +146,7 @@ let execute ctx code =
 
     | Inst.Unless ->
         let status = Ctx.get_status ctx in
-        if status = 0 then fetch ctx & pc + 1
+        if status = "0" then fetch ctx & pc + 1
         else fetch ctx & pc + 2
 
     | Inst.Var ->
