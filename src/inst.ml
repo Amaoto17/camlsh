@@ -5,7 +5,6 @@ type t =
   | And
   | Block
   | Builtin of string
-  | End
   | Exec
   | Exit
   | Jump of int
@@ -22,7 +21,6 @@ let show = function
   | And -> "and"
   | Block -> "block"
   | Builtin op -> !% "builtin %s" op
-  | End -> "end"
   | Exec -> "exec"
   | Exit -> "exit"
   | Jump pos -> !% "jump -> %02d" pos

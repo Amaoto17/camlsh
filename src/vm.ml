@@ -42,10 +42,14 @@ end
 module Ctx = struct
   type t =
     { mutable status : int
-    ; mutable redir_chain : (unit -> unit)
-    ; mutable post_process : (unit -> unit)
     ; mutable stack : string Stack.t
+    ; redir : redir
     ; vars : vars
+    }
+
+  and redir =
+    { mutable input : file_descr option
+    ; mutable output : file_descr option
     }
 
   and vars =
@@ -68,9 +72,11 @@ module Ctx = struct
 
   let create () =
     { status = 0
-    ; redir_chain = (fun () -> ())
-    ; post_process = (fun () -> ())
     ; stack = Stack.create ()
+    ; redir =
+        { input = None
+        ; output = None
+        }
     ; vars =
         { builtin = Env.create ()
         ; global = Env.create ()
@@ -86,32 +92,51 @@ module Ctx = struct
 
   (* redirection *)
 
-  let add_redir t thunk =
-    let rest = t.redir_chain in
-    t.redir_chain <- (fun () -> rest (); thunk ())
+  let dup2_close fd1 fd2 =
+    dup2 fd1 fd2;
+    close fd1
 
-  let reset_redir t =
-    t.redir_chain <- (fun () -> ())
+  let get_input t = t.redir.input
 
-  let redirect t =
-    t.redir_chain ()
+  let get_output t = t.redir.output
 
-  let add_post_process t thunk =
-    let rest = t.post_process in
-    t.post_process <- (fun () -> thunk (); rest ())
+  let safe_close = function
+    | None -> ()
+    | Some fd -> try close fd with Unix_error(_, _, _) -> ()
 
-  let post_process t =
-    t.post_process ();
-    t.post_process <- (fun () -> ())
+  let set_stdin t input =
+    get_input t |> safe_close;
+    t.redir.input <- Some input
 
-  let safe_redirect t =
-    let saved_stdout = dup stdout in
-    redirect t;
-    let thunk = fun () ->
-      dup2 saved_stdout stdout;
-      close saved_stdout
+  let set_stdout t output =
+    get_output t |> safe_close;
+    t.redir.output <- Some output
+
+  let do_redirection t =
+    begin match get_input t with
+    | None -> ()
+    | Some fd -> dup2_close fd stdin
+    end;
+    begin match get_output t with
+    | None -> ()
+    | Some fd -> dup2_close fd stdout
+    end
+
+  let safe_redirection t =
+    let stdin' = dup stdin in
+    let stdout' = dup stdout in
+    do_redirection t;
+    let thunk () =
+      dup2_close stdin' stdin;
+      dup2_close stdout' stdout
     in
     thunk
+
+  let reset_redir t =
+    get_input t |> safe_close;
+    get_output t |> safe_close;
+    t.redir.input <- None;
+    t.redir.output <- None
 
   (* stack operation *)
 
@@ -220,30 +245,27 @@ let execute ctx code =
         else fetch ctx & pc + 1
 
     | Inst.Block ->
-        let clean = Ctx.safe_redirect ctx in
+        let return = Ctx.safe_redirection ctx in
         Ctx.reset_redir ctx;
-        Ctx.add_post_process ctx clean;
         Ctx.new_env ctx;
+        fetch ctx & pc + 2;
+        Ctx.delete_env ctx;
+        return ();
         fetch ctx & pc + 1
 
     | Inst.Builtin com ->
-        let args = Ctx.pop_all ctx in
-        let clean = Ctx.safe_redirect ctx in
-        exec_builtin ctx args com;
-        clean ();
-        fetch ctx & pc + 1
-
-    | Inst.End ->
-        Ctx.post_process ctx;
-        Ctx.delete_env ctx;
+        let argv = Ctx.pop_all ctx in
+        let return = Ctx.safe_redirection ctx in
+        exec_builtin ctx argv com;
+        return ();
         fetch ctx & pc + 1
 
     | Inst.Exec ->
-        let args = Ctx.pop_all ctx in
+        let argv = Ctx.pop_all ctx in
         begin match fork () with
         | 0 ->
-            Ctx.redirect ctx;
-            execvp args.(0) args
+            Ctx.do_redirection ctx;
+            execvp argv.(0) argv
         | _ ->
             wait_child ctx;
             fetch ctx & pc + 1
@@ -271,19 +293,11 @@ let execute ctx code =
         begin match fork () with
         | 0 ->
             close read;
-            let thunk = fun () ->
-              dup2 write stdout;
-              close write
-            in
-            Ctx.add_redir ctx thunk;
+            Ctx.set_stdout ctx write;
             fetch ctx & pc + 2
         | _ ->
             close write;
-            let thunk = fun () ->
-              dup2 read stdin;
-              close read
-            in
-            Ctx.add_redir ctx thunk;
+            Ctx.set_stdin ctx read;
             fetch ctx & pc + 1
         end
 
@@ -293,12 +307,8 @@ let execute ctx code =
 
     | Inst.Stdout ->
         let path = Ctx.pop ctx in
-        let thunk = fun () ->
-          let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
-          dup2 dst stdout;
-          close dst
-        in
-        Ctx.add_redir ctx thunk;
+        let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
+        Ctx.set_stdout ctx dst;
         fetch ctx & pc + 1
 
     | Inst.Var ->
