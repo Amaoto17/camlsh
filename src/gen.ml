@@ -136,6 +136,10 @@ let rec walk t = function
       walk t right;
       Code.emit t & Inst.Wait
 
+  | Ast.Stdin path ->
+      Code.emit t & Inst.Push path;
+      Code.emit t & Inst.Stdin
+
   | Ast.Stdout path ->
       Code.emit t & Inst.Push path;
       Code.emit t & Inst.Stdout

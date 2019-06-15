@@ -51,10 +51,16 @@ let elem =
     ]
 
 let redirection =
-  succeed (fun path -> Ast.Stdout path)
-    |. char '>'
-    |. spaces
-    |= word
+  one_of
+    [ succeed (fun path -> Ast.Stdin path)
+        |. char '<'
+        |. spaces
+        |= word
+    ; succeed (fun path -> Ast.Stdout path)
+        |. char '>'
+        |. spaces
+        |= word
+    ]
 
 let simple =
   succeed (fun elems -> Ast.External elems)

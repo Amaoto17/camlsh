@@ -13,6 +13,7 @@ type t =
   | If of t * t
   | Or of t
   | Pipe of t * t
+  | Stdin of string
   | Stdout of string
   | While of t * t
   | Word of string
@@ -43,6 +44,8 @@ let rec show = function
       !% "(or %s)" (show node)
   | Pipe (left, right) ->
       !% "(pipe %s %s)" (show left) (show right)
+  | Stdin path ->
+      !% "(< %s)" path
   | Stdout path ->
       !% "(> %s)" path
   | While (cond, body) ->

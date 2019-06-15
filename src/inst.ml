@@ -16,6 +16,7 @@ type t =
   | Nop
   | Pipe
   | Push of string
+  | Stdin
   | Stdout
   | Unless
   | Var
@@ -37,6 +38,7 @@ let show = function
   | Nop -> "nop"
   | Pipe -> "pipe"
   | Push s -> !% "push %S" s
+  | Stdin -> "stdin"
   | Stdout -> "stdout"
   | Unless -> "unless"
   | Var -> "var"

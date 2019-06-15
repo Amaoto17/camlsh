@@ -138,6 +138,12 @@ let execute ctx code =
         Ctx.push ctx s;
         fetch ctx & pc + 1
 
+    | Inst.Stdin ->
+        let path = Ctx.pop ctx in
+        let src = openfile path [O_RDONLY] 0 in
+        Ctx.set_stdin ctx src;
+        fetch ctx & pc + 1
+
     | Inst.Stdout ->
         let path = Ctx.pop ctx in
         let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
