@@ -16,7 +16,7 @@ let dump_code =
 
 
 let main =
-  let ctx = Vm.Ctx.create () in
+  let ctx = Ctx.create () in
   Vm.init ctx;
   while true do
     printf "[%s]\n" (getcwd () |> Deco.colorize `Yellow);

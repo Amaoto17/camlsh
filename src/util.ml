@@ -56,3 +56,37 @@ module Arraybuffer = struct
     if t1.length + t2.length > t1.capacity then resize t1 t2.length;
     Array.blit t1.buffer t1.length t2.buffer 0 t2.length
 end
+
+module Env = struct
+  type t =
+    { vars : (string, string array) Hashtbl.t
+    ; outer : t option
+    }
+
+  let create () =
+    { vars = Hashtbl.create 64
+    ; outer = None
+    }
+
+  let new_env t =
+    let new_env = create () in
+    { new_env with outer = Some t }
+
+  let delete_env t =
+    match t.outer with
+    | None -> failwith "no outer environment"
+    | Some env -> env
+
+  let rec find t key =
+    match Hashtbl.find_opt t.vars key with
+    | Some v -> Some v
+    | None ->
+        match t.outer with
+        | None -> None
+        | Some env -> find env key
+
+  let set t key v =
+    match find t key with
+    | None -> Hashtbl.add t.vars key v
+    | Some _ -> Hashtbl.replace t.vars key v
+end

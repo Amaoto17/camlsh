@@ -93,6 +93,7 @@ let rec walk t = function
       insert_jump t _end
 
   | Ast.Builtin (op, nodes) ->
+      Code.emit t & Inst.Push op;
       List.iter (walk t) nodes;
       Code.emit t & Inst.Builtin op
 
