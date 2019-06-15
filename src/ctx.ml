@@ -65,6 +65,14 @@ let delete_env t =
   let local = t.vars.local in
   t.vars.local <- Env.delete_env local
 
+let put_env t =
+  let local = t.vars.local in
+  t.vars.local <- Env.put_env local
+
+let pop_env t =
+  let local = t.vars.local in
+  t.vars.local <- Env.pop_env local
+
 let find t key =
   match Env.find t.vars.local key with
   | Some v -> Some v
@@ -153,11 +161,11 @@ let pop_all t =
 (* handling loop *)
 
 let begin_loop t st ed =
-  new_env t;
+  put_env t;
   Stack.push (st, ed) t.loop_stack
 
 let exit_loop t =
-  delete_env t;
+  pop_env t;
   Stack.pop t.loop_stack |> ignore
 
 let loop_start t =

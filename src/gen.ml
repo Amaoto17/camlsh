@@ -80,7 +80,7 @@ let insert_jump t pos =
 
 let rec walk t = function
   | Ast.And node ->
-      Code.emit t & Inst.And;
+      Code.emit t & Inst.If;
       let _end = reserve t in
       walk t node;
       insert_jump t _end
@@ -112,8 +112,17 @@ let rec walk t = function
       Code.emit t & Inst.Push name;
       Code.emit t & Inst.Var
 
+  | Ast.If (cond, body) ->
+      walk t cond;
+      Code.emit t & Inst.If;
+      let _end = reserve t in
+      Code.emit t & Inst.Begin;
+      walk t body;
+      Code.emit t & Inst.End;
+      insert_jump t _end
+
   | Ast.Or node ->
-      Code.emit t & Inst.Or;
+      Code.emit t & Inst.Unless;
       let _end = reserve t in
       walk t node;
       insert_jump t _end
@@ -131,24 +140,11 @@ let rec walk t = function
       Code.emit t & Inst.Push path;
       Code.emit t & Inst.Stdout
 
-  (* | Ast.While (cond, body) ->
-      Code.emit t & Inst.While;
-      let _end = reserve t in
-      let _start = Code.length t in
-      walk t cond;
-      Code.emit t & Inst.And;
-      let _break = reserve t in
-      walk t body;
-      Code.emit t & Inst.Jump _start;
-      insert_jump t _break;
-      Code.emit t & Inst.Leave;
-      insert_jump t _end *)
-
   | Ast.While (cond, body) ->
       let _while = reserve t in
       let _start = Code.length t in
       walk t cond;
-      Code.emit t & Inst.And;
+      Code.emit t & Inst.If;
       let _cond = reserve t in
       walk t body;
       Code.emit t & Inst.Jump _start;

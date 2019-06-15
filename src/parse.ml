@@ -80,7 +80,7 @@ let rec block = fun st -> (|>) st &
   let rec loop acc =
     one_of
       [ succeed acc
-          |. look_ahead (keyword "end" <|> keyword "do")
+          |. look_ahead (keyword "end" <|> keyword "do" <|> keyword "then")
           |> map List.rev
           |> map (fun coms -> Ast.Compound coms)
       ; pipeline
@@ -100,8 +100,14 @@ and control = fun st -> (|>) st &
     ; succeed (fun com -> Ast.Or com)
         |. keyword "or"
         |= command
-    ; succeed (fun coms -> Ast.Begin coms)
+    ; succeed (fun body -> Ast.Begin body)
         |. keyword "begin"
+        |= block
+        |. keyword "end"
+    ; succeed (fun cond body -> Ast.If (cond, body))
+        |. keyword "if"
+        |= block
+        |. keyword "then"
         |= block
         |. keyword "end"
     ; succeed (fun cond body -> Ast.While (cond, body))

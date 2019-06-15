@@ -56,11 +56,6 @@ let execute ctx code =
       failwith "invalild address"
   
   and exec ctx pc = function
-    | Inst.And ->
-        let status = Ctx.get_status ctx in
-        if status = 0 then fetch ctx & pc + 2
-        else fetch ctx & pc + 1
-
     | Inst.Begin ->
         Ctx.new_env ctx;
         fetch ctx & pc + 1
@@ -108,6 +103,11 @@ let execute ctx code =
     | Inst.Exit ->
         exit 0
 
+    | Inst.If ->
+        let status = Ctx.get_status ctx in
+        if status = 0 then fetch ctx & pc + 2
+        else fetch ctx & pc + 1
+
     | Inst.Jump dst ->
         fetch ctx dst
 
@@ -120,11 +120,6 @@ let execute ctx code =
 
     | Inst.Nop ->
         fetch ctx & pc + 1
-
-    | Inst.Or ->
-        let status = Ctx.get_status ctx in
-        if status = 0 then fetch ctx & pc + 1
-        else fetch ctx & pc + 2
 
     | Inst.Pipe ->
         let (read, write) = pipe () in
@@ -148,6 +143,11 @@ let execute ctx code =
         let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
         Ctx.set_stdout ctx dst;
         fetch ctx & pc + 1
+
+    | Inst.Unless ->
+        let status = Ctx.get_status ctx in
+        if status = 0 then fetch ctx & pc + 1
+        else fetch ctx & pc + 2
 
     | Inst.Var ->
         let name = Ctx.pop ctx in

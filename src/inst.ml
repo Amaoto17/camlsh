@@ -2,7 +2,6 @@ open Util
 
 
 type t =
-  | And
   | Begin
   | Break
   | Builtin of string
@@ -10,20 +9,20 @@ type t =
   | End
   | Exec
   | Exit
+  | If
   | Jump of int
   | Leave
   | Loop_end
   | Nop
-  | Stdout
-  | Or
   | Pipe
   | Push of string
+  | Stdout
+  | Unless
   | Var
   | Wait
   | While of int * int
 
 let show = function
-  | And -> "and"
   | Begin -> "begin"
   | Break -> "break"
   | Builtin op -> !% "builtin %s" op
@@ -31,14 +30,15 @@ let show = function
   | End -> "end"
   | Exec -> "exec"
   | Exit -> "exit"
+  | If -> "if"
   | Jump pos -> !% "jump -> %02d" pos
   | Leave -> "leave"
   | Loop_end -> "loop_end"
   | Nop -> "nop"
-  | Or -> "or"
   | Pipe -> "pipe"
-  | Stdout -> "stdout"
   | Push s -> !% "push %S" s
+  | Stdout -> "stdout"
+  | Unless -> "unless"
   | Var -> "var"
   | Wait -> "wait"
   | While (st, ed) -> !% "while %d..%d" st ed

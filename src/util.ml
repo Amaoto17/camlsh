@@ -60,19 +60,30 @@ end
 module Env = struct
   type t =
     { vars : (string, string array) Hashtbl.t
+    ; parent : t option
     ; outer : t option
     }
 
   let create () =
     { vars = Hashtbl.create 64
+    ; parent = None
     ; outer = None
     }
 
   let new_env t =
-    let new_env = create () in
-    { new_env with outer = Some t }
+    let env = create () in
+    { env with parent = Some t; outer = t.outer }
 
   let delete_env t =
+    match t.parent with
+    | None -> failwith "no parent environment"
+    | Some env -> env
+
+  let put_env t =
+    let env = create () in
+    { env with parent = None; outer = Some t }
+
+  let pop_env t =
     match t.outer with
     | None -> failwith "no outer environment"
     | Some env -> env
@@ -81,9 +92,12 @@ module Env = struct
     match Hashtbl.find_opt t.vars key with
     | Some v -> Some v
     | None ->
-        match t.outer with
-        | None -> None
+        match t.parent with
         | Some env -> find env key
+        | None ->
+            match t.outer with
+            | Some env -> find env key
+            | None -> None
 
   let set t key v =
     match find t key with
