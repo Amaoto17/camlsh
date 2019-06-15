@@ -61,13 +61,8 @@ let execute ctx code =
         if status = 0 then fetch ctx & pc + 2
         else fetch ctx & pc + 1
 
-    | Inst.Block ->
-        let return = Ctx.safe_redirection ctx in
-        Ctx.reset_redir ctx;
+    | Inst.Begin ->
         Ctx.new_env ctx;
-        fetch ctx & pc + 2;
-        Ctx.delete_env ctx;
-        return ();
         fetch ctx & pc + 1
 
     | Inst.Builtin com ->
@@ -75,6 +70,28 @@ let execute ctx code =
         let return = Ctx.safe_redirection ctx in
         exec_builtin ctx argv;
         return ();
+        fetch ctx & pc + 1
+
+    | Inst.Break ->
+        begin match Ctx.loop_end ctx with
+        | None ->
+            eprintf "'break' while not inside of loop\n%!";
+            fetch ctx & pc + 1
+        | Some ed ->
+            fetch ctx ed
+        end
+
+    | Inst.Continue ->
+        begin match Ctx.loop_start ctx with
+        | None ->
+            eprintf "'continue' while not inside of loop\n%!";
+            fetch ctx & pc + 1
+        | Some st ->
+            fetch ctx st
+        end
+
+    | Inst.End ->
+        Ctx.delete_env ctx;
         fetch ctx & pc + 1
 
     | Inst.Exec ->
@@ -96,6 +113,10 @@ let execute ctx code =
 
     | Inst.Leave ->
         Ctx.reset_redir ctx
+    
+    | Inst.Loop_end ->
+        Ctx.exit_loop ctx;
+        fetch ctx & pc + 1
 
     | Inst.Nop ->
         fetch ctx & pc + 1
@@ -140,12 +161,8 @@ let execute ctx code =
         wait_child ctx;
         fetch ctx & pc + 1
 
-    | Inst.While ->
-        let return = Ctx.safe_redirection ctx in
-        Ctx.new_env ctx;
-        fetch ctx & pc + 2;
-        Ctx.delete_env ctx;
-        return ();
+    | Inst.While (st, ed) ->
+        Ctx.begin_loop ctx st ed;
         fetch ctx & pc + 1
   in
 

@@ -6,6 +6,7 @@ open Unix
 type t =
   { mutable status : int
   ; mutable stack : string Stack.t
+  ; mutable loop_stack : (int * int) Stack.t
   ; mutable redir : redir
   ; vars : vars
   }
@@ -36,6 +37,7 @@ let show t =
 let create () =
   { status = 0
   ; stack = Stack.create ()
+  ; loop_stack = Stack.create ()
   ; redir =
       { input = None
       ; output = None
@@ -52,71 +54,6 @@ let create () =
 let get_status t = t.status
 
 let set_status t status = t.status <- status
-
-(* redirection *)
-
-let dup2_close fd1 fd2 =
-  dup2 fd1 fd2;
-  close fd1
-
-let get_input t = t.redir.input
-
-let get_output t = t.redir.output
-
-let safe_close = function
-  | None -> ()
-  | Some fd -> try close fd with Unix_error(_, _, _) -> ()
-
-let set_stdin t input =
-  get_input t |> safe_close;
-  t.redir.input <- Some input
-
-let set_stdout t output =
-  get_output t |> safe_close;
-  t.redir.output <- Some output
-
-let do_redirection t =
-  begin match get_input t with
-  | None -> ()
-  | Some fd -> dup2_close fd stdin
-  end;
-  begin match get_output t with
-  | None -> ()
-  | Some fd -> dup2_close fd stdout
-  end
-
-let safe_redirection t =
-  let stdin' = dup stdin in
-  let stdout' = dup stdout in
-  let redir = t.redir in
-  do_redirection t;
-  let thunk () =
-    dup2_close stdin' stdin;
-    dup2_close stdout' stdout;
-    t.redir <- redir
-  in
-  thunk
-
-let reset_redir t =
-  get_input t |> safe_close;
-  get_output t |> safe_close;
-  t.redir.input <- None;
-  t.redir.output <- None
-
-(* stack operation *)
-
-let push t s = Stack.push s t.stack
-
-let pop t = Stack.pop t.stack
-
-let pop_all t =
-  let rec loop acc =
-    if Stack.is_empty t.stack then acc
-    else
-      let elem = Stack.pop t.stack in
-      elem :: acc |> loop
-  in
-  loop [] |> Array.of_list
 
 (* handling variables *)
 
@@ -140,3 +77,93 @@ let find t key =
           | None -> None
 
 let set_local t = Env.set t.vars.local
+
+(* redirection *)
+
+let dup2_close fd1 fd2 =
+  dup2 fd1 fd2;
+  close fd1
+
+let get_input t = t.redir.input
+
+let get_output t = t.redir.output
+
+let safe_close = function
+  | None -> ()
+  | Some fd -> try close fd with Unix_error(_, _, _) -> ()
+
+let reset_redir t =
+  get_input t |> safe_close;
+  get_output t |> safe_close;
+  t.redir.input <- None;
+  t.redir.output <- None
+
+let set_stdin t input =
+  get_input t |> safe_close;
+  t.redir.input <- Some input
+
+let set_stdout t output =
+  get_output t |> safe_close;
+  t.redir.output <- Some output
+
+let do_redirection t =
+  begin match get_input t with
+  | None -> ()
+  | Some fd -> dup2_close fd stdin
+  end;
+  begin match get_output t with
+  | None -> ()
+  | Some fd -> dup2_close fd stdout
+  end
+
+let safe_redirection t =
+  let stdin' = dup stdin in
+  let stdout' = dup stdout in
+  begin match get_input t with
+  | None -> ()
+  | Some fd -> dup2 fd stdin
+  end;
+  begin match get_output t with
+  | None -> ()
+  | Some fd -> dup2 fd stdout
+  end;
+  let return () =
+    dup2_close stdin' stdin;
+    dup2_close stdout' stdout
+  in
+  return
+
+
+(* stack operation *)
+
+let push t s = Stack.push s t.stack
+
+let pop t = Stack.pop t.stack
+
+let pop_all t =
+  let rec loop acc =
+    if Stack.is_empty t.stack then acc
+    else
+      let elem = Stack.pop t.stack in
+      elem :: acc |> loop
+  in
+  loop [] |> Array.of_list
+
+
+(* handling loop *)
+
+let begin_loop t st ed =
+  new_env t;
+  Stack.push (st, ed) t.loop_stack
+
+let exit_loop t =
+  delete_env t;
+  Stack.pop t.loop_stack |> ignore
+
+let loop_start t =
+  if Stack.is_empty t.loop_stack then None
+  else let (st, _) = Stack.top t.loop_stack in Some st
+
+let loop_end t =
+  if Stack.is_empty t.loop_stack then None
+  else let (_, ed) = Stack.top t.loop_stack in Some ed

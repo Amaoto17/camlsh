@@ -100,7 +100,7 @@ and control = fun st -> (|>) st &
     ; succeed (fun com -> Ast.Or com)
         |. keyword "or"
         |= command
-    ; succeed (fun coms -> Ast.Block coms)
+    ; succeed (fun coms -> Ast.Begin coms)
         |. keyword "begin"
         |= block
         |. keyword "end"
@@ -110,6 +110,10 @@ and control = fun st -> (|>) st &
         |. keyword "do"
         |= block
         |. keyword "end"
+    ; succeed Ast.Break
+        |. keyword "break"
+    ; succeed Ast.Continue
+        |. keyword "continue"
     ; command
     ]
 

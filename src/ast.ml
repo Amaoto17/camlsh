@@ -3,9 +3,11 @@ open Util
 
 type t =
   | And of t
-  | Block of t
+  | Begin of t
+  | Break
   | Builtin of string * t list
   | Compound of t list
+  | Continue
   | External of t list
   | Identifier of string
   | Or of t
@@ -17,14 +19,18 @@ type t =
 let rec show = function
   | And node ->
       !% "(and %s)" (show node)
-  | Block node ->
-      !% "(block %s)" (show node)
-  | Compound nodes ->
-      !% "%s"
-        & nodes |> List.map show |> String.concat " "
+  | Begin node ->
+      !% "(begin %s)" (show node)
+  | Break ->
+      "break"
   | Builtin (op, nodes) ->
       !% "(builtin %s %s)" op
         & nodes |> List.map show |> String.concat " "
+  | Compound nodes ->
+      !% "%s"
+        & nodes |> List.map show |> String.concat " "
+  | Continue ->
+      "continue"
   | External nodes ->
       !% "(external %s)"
         & nodes |> List.map show |> String.concat " "
