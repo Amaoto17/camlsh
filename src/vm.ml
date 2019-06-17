@@ -64,11 +64,10 @@ let execute ctx code =
         Ctx.new_env ctx;
         fetch ctx & pc + 1
 
-    | Inst.Builtin com ->
+    | Inst.Builtin ->
         let argv = Ctx.pop_all ctx in
-        let return = Ctx.safe_redirection ctx in
+        Ctx.safe_redirection ctx;
         exec_builtin ctx argv;
-        return ();
         fetch ctx & pc + 1
 
     | Inst.Break ->
@@ -147,6 +146,10 @@ let execute ctx code =
         Ctx.push ctx s;
         fetch ctx & pc + 1
 
+    | Inst.Return ->
+        Ctx.return ctx;
+        fetch ctx & pc + 1
+
     | Inst.Stdin ->
         let path = Ctx.pop ctx in
         let src = openfile path [O_RDONLY] 0 in
@@ -158,6 +161,29 @@ let execute ctx code =
         let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
         Ctx.set_stdout ctx dst;
         fetch ctx & pc + 1
+
+    | Inst.Subst ->
+        let (read, write) = pipe () in
+        begin match fork () with
+        | 0 ->
+            close read;
+            Ctx.set_stdout ctx write;
+            Ctx.clear_stack ctx;
+            Ctx.clear_buf ctx;
+            fetch ctx & pc + 2
+        | _ ->
+            close write;
+            wait_child ctx;
+            let res = in_channel_of_descr read in
+            try
+              Ctx.add_buf ctx (input_line res);
+              while true do
+                Ctx.add_buf ctx " ";
+                Ctx.add_buf ctx (input_line res)
+              done
+            with End_of_file -> ();
+            fetch ctx & pc + 1
+        end
 
     | Inst.Unless ->
         let status = Ctx.get_status ctx in

@@ -28,7 +28,7 @@ let delimiter =
 let word =
   one_of
     [ succeed identity
-        |= many1 (not_in_class " |<>;$\n\r\t")
+        |= many1 (not_in_class " |<>();$\n\r\t")
         |> concat
     ; expect "word"
     ]
@@ -60,17 +60,26 @@ let ident =
   one_of
     [ succeed (fun name -> Ast.Identifier name)
         |. char '$'
-        |. spaces
         |= identifier
     ; word_elem
     ]
 
-let elem =
+let rec subst = fun st -> (|>) st &
+  one_of
+    [ succeed (fun comp -> Ast.Subst comp)
+        |. char '('
+        |. spaces
+        |= compound
+        |. char ')'
+    ; ident
+    ]
+
+and elem = fun st -> (|>) st &
   succeed (fun nodes -> Ast.Elem nodes)
-    |= many1 ident
+    |= many1 subst
     |. spaces
 
-let redirection =
+and redirection = fun st -> (|>) st &
   one_of
     [ succeed (fun path -> Ast.Stdin path)
         |. char '<'
@@ -83,13 +92,13 @@ let redirection =
     ]
     |. spaces
 
-let simple =
+and simple = fun st -> (|>) st &
   succeed (fun elems -> Ast.External elems)
     |= many1 (elem <|> redirection)
     |. spaces
 
-let builtin =
-  succeed (fun op elems -> Ast.Builtin (op, elems))
+and builtin = fun st -> (|>) st &
+  succeed (fun name elems -> Ast.Builtin (name, elems))
     |= one_of
         [ keyword "cd"
         ; keyword "echo"
@@ -100,7 +109,7 @@ let builtin =
     |= many (elem <|> redirection)
     |. spaces
 
-let command =
+and command = fun st -> (|>) st &
   one_of
     [ succeed Ast.Break
         |. keyword "break"
@@ -110,7 +119,7 @@ let command =
     ; simple
     ]
 
-let rec control = fun st -> (|>) st &
+and control = fun st -> (|>) st &
   one_of
     [ succeed (fun node redir -> Ast.Control (node, redir))
         |= one_of

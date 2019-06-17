@@ -93,10 +93,11 @@ let rec walk t = function
   | Ast.Break ->
       Code.emit t & Inst.Break
 
-  | Ast.Builtin (op, nodes) ->
-      Code.emit t & Inst.Push op;
+  | Ast.Builtin (name, nodes) ->
+      Code.emit t & Inst.Push name;
       List.iter (walk t) nodes;
-      Code.emit t & Inst.Builtin op
+      Code.emit t & Inst.Builtin;
+      Code.emit t & Inst.Return
 
   | Ast.Compound nodes ->
       List.iter (walk t) nodes
@@ -151,6 +152,13 @@ let rec walk t = function
   | Ast.Stdout path ->
       walk t path;
       Code.emit t & Inst.Stdout
+
+  | Ast.Subst node ->
+      Code.emit t & Inst.Subst;
+      let _end = reserve t in
+      walk t node;
+      Code.emit t & Inst.Exit;
+      insert_jump t _end
 
   | Ast.While (cond, body) ->
       let _while = reserve t in

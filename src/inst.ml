@@ -5,7 +5,7 @@ type t =
   | Add_string of string
   | Begin
   | Break
-  | Builtin of string
+  | Builtin
   | Continue
   | Emit_string
   | End
@@ -18,8 +18,10 @@ type t =
   | Nop
   | Pipe
   | Push of string
+  | Return
   | Stdin
   | Stdout
+  | Subst
   | Unless
   | Var
   | Wait
@@ -29,7 +31,7 @@ let show = function
   | Add_string s -> !% "add_string %S" s
   | Begin -> "begin"
   | Break -> "break"
-  | Builtin op -> !% "builtin %s" op
+  | Builtin -> "builtin"
   | Continue -> "continue"
   | Emit_string -> "emit_string"
   | End -> "end"
@@ -42,8 +44,10 @@ let show = function
   | Nop -> "nop"
   | Pipe -> "pipe"
   | Push s -> !% "push %S" s
+  | Return -> "return"
   | Stdin -> "stdin"
   | Stdout -> "stdout"
+  | Subst -> "subst"
   | Unless -> "unless"
   | Var -> "var"
   | Wait -> "wait"

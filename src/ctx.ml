@@ -2,12 +2,14 @@ open Util
 open Printf
 open Unix
 
+let nop () = ()
 
 type t =
   { mutable stack : string Stack.t
   ; mutable buf : Buffer.t
   ; mutable loop_stack : (int * int) Stack.t
   ; mutable redir : redir
+  ; mutable return : (unit -> unit)
   ; vars : vars
   }
 
@@ -42,6 +44,7 @@ let create () =
       { input = None
       ; output = None
       }
+  ; return = nop
   ; vars =
       { builtin = Env.create ()
       ; global = Env.create ()
@@ -131,6 +134,13 @@ let do_redirection t =
   | Some fd -> dup2_close fd stdout
   end
 
+let set_return t thunk =
+  t.return <- thunk
+
+let return t =
+  t.return ();
+  t.return <- nop
+
 let safe_redirection t =
   let stdin' = dup stdin in
   let stdout' = dup stdout in
@@ -142,11 +152,11 @@ let safe_redirection t =
   | None -> ()
   | Some fd -> dup2 fd stdout
   end;
-  let return () =
+  let thunk () =
     dup2_close stdin' stdin;
     dup2_close stdout' stdout
   in
-  return
+  set_return t thunk
 
 
 (* stack operation *)
@@ -164,6 +174,8 @@ let pop_all t =
   in
   loop [] |> Array.of_list
 
+let clear_stack t = Stack.clear t.stack
+
 
 (* buffer operation *)
 
@@ -174,6 +186,8 @@ let emit_buf t =
   let res = Buffer.contents t.buf in
   Buffer.clear t.buf;
   res
+
+let clear_buf t = Buffer.clear t.buf
 
 
 (* handling loop *)

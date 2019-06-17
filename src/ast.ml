@@ -17,6 +17,7 @@ type t =
   | Pipe of t * t
   | Stdin of t
   | Stdout of t
+  | Subst of t
   | While of t * t
   | Word of string
 
@@ -27,8 +28,8 @@ let rec show = function
       !% "(begin %s)" (show body)
   | Break ->
       "break"
-  | Builtin (op, nodes) ->
-      !% "(builtin %s %s)" op
+  | Builtin (name, nodes) ->
+      !% "(builtin %s %s)" name
         & nodes |> List.map show |> String.concat " "
   | Compound nodes ->
       !% "%s"
@@ -55,6 +56,8 @@ let rec show = function
       !% "(< %s)" (show path)
   | Stdout path ->
       !% "(> %s)" (show path)
+  | Subst node ->
+      !% "(subst %s)" (show node)
   | While (cond, body) ->
       !% "(while %s %s)" (show cond) (show body)
   | Word s ->
