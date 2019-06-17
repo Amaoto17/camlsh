@@ -85,9 +85,9 @@ let rec walk t = function
       walk t node;
       insert_jump t _end
 
-  | Ast.Begin node ->
+  | Ast.Begin body ->
       Code.emit t & Inst.Begin;
-      walk t node;
+      walk t body;
       Code.emit t & Inst.End
     
   | Ast.Break ->
@@ -103,6 +103,14 @@ let rec walk t = function
 
   | Ast.Continue ->
       Code.emit t & Inst.Continue
+
+  | Ast.Control (node, redir) ->
+      List.iter (walk t) redir;
+      walk t node
+
+  | Ast.Elem nodes ->
+      List.iter (walk t) nodes;
+      Code.emit t & Inst.Emit_string
 
   | Ast.External nodes ->
       List.iter (walk t) nodes;
@@ -137,11 +145,11 @@ let rec walk t = function
       Code.emit t & Inst.Wait
 
   | Ast.Stdin path ->
-      Code.emit t & Inst.Push path;
+      walk t path;
       Code.emit t & Inst.Stdin
 
   | Ast.Stdout path ->
-      Code.emit t & Inst.Push path;
+      walk t path;
       Code.emit t & Inst.Stdout
 
   | Ast.While (cond, body) ->
@@ -158,7 +166,7 @@ let rec walk t = function
       Code.set t _while & Inst.While (_start, _end)
 
   | Ast.Word s ->
-      Code.emit t & Inst.Push s
+      Code.emit t & Inst.Add_string s
 
 
 let compile ast =

@@ -56,6 +56,10 @@ let execute ctx code =
       failwith "invalild address"
   
   and exec ctx pc = function
+    | Inst.Add_string s ->
+        Ctx.add_buf ctx s;
+        fetch ctx & pc + 1
+
     | Inst.Begin ->
         Ctx.new_env ctx;
         fetch ctx & pc + 1
@@ -84,6 +88,11 @@ let execute ctx code =
         | Some st ->
             fetch ctx st
         end
+
+    | Inst.Emit_string ->
+        let s = Ctx.emit_buf ctx in
+        Ctx.push ctx s;
+        fetch ctx & pc + 1
 
     | Inst.End ->
         Ctx.delete_env ctx;
@@ -158,8 +167,8 @@ let execute ctx code =
     | Inst.Var ->
         let name = Ctx.pop ctx in
         begin match Ctx.find ctx name with
-        | None -> Ctx.push ctx ""
-        | Some arr -> Array.iter (Ctx.push ctx) arr
+        | None -> Ctx.add_buf ctx ""
+        | Some arr -> Array.iter (Ctx.add_buf ctx) arr
         end;
         fetch ctx & pc + 1
 

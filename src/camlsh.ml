@@ -28,7 +28,8 @@ let main =
           eprintf "%s\n%!" (Ast.show ast |> Deco.colorize `Cyan);
           let code = Gen.compile ast in
           dump_code code;
-          Vm.execute ctx code
+          Vm.execute ctx code;
+          ()
       | Error msg ->
           eprintf "%s\n%!" (msg |> Deco.colorize `Red)
     with End_of_file -> exit 0

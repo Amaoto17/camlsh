@@ -2,10 +2,12 @@ open Util
 
 
 type t =
+  | Add_string of string
   | Begin
   | Break
   | Builtin of string
   | Continue
+  | Emit_string
   | End
   | Exec
   | Exit
@@ -24,10 +26,12 @@ type t =
   | While of int * int
 
 let show = function
+  | Add_string s -> !% "add_string %S" s
   | Begin -> "begin"
   | Break -> "break"
   | Builtin op -> !% "builtin %s" op
   | Continue -> "continue"
+  | Emit_string -> "emit_string"
   | End -> "end"
   | Exec -> "exec"
   | Exit -> "exit"

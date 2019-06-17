@@ -11,6 +11,20 @@ open Oparse.Util
 open Util
 
 
+let reserved =
+  [ "end"
+  ; "then"
+  ; "do"
+  ]
+
+let is_reserved s = List.mem s reserved
+
+let delimiter =
+  one_of
+    [ char ';'
+    ]
+    |. spaces
+
 let word =
   one_of
     [ succeed identity
@@ -18,7 +32,6 @@ let word =
         |> concat
     ; expect "word"
     ]
-    |. spaces
 
 let keyword s =
   one_of
@@ -38,29 +51,37 @@ let identifier =
         |> concat
     ; expect "identifier"
     ]
-    |. spaces
 
-let elem =
+let word_elem =
+  succeed (fun s -> Ast.Word s)
+    |= word
+
+let ident =
   one_of
-    [ succeed (fun s -> Ast.Identifier s)
+    [ succeed (fun name -> Ast.Identifier name)
         |. char '$'
         |. spaces
         |= identifier
-    ; succeed (fun s -> Ast.Word s)
-        |= word
+    ; word_elem
     ]
+
+let elem =
+  succeed (fun nodes -> Ast.Elem nodes)
+    |= many1 ident
+    |. spaces
 
 let redirection =
   one_of
     [ succeed (fun path -> Ast.Stdin path)
         |. char '<'
         |. spaces
-        |= word
+        |= elem
     ; succeed (fun path -> Ast.Stdout path)
         |. char '>'
         |. spaces
-        |= word
+        |= elem
     ]
+    |. spaces
 
 let simple =
   succeed (fun elems -> Ast.External elems)
@@ -80,53 +101,47 @@ let builtin =
     |. spaces
 
 let command =
-  builtin <|> simple
-
-let rec block = fun st -> (|>) st &
-  let rec loop acc =
-    one_of
-      [ succeed acc
-          |. look_ahead (keyword "end" <|> keyword "do" <|> keyword "then")
-          |> map List.rev
-          |> map (fun coms -> Ast.Compound coms)
-      ; pipeline
-          |. char ';'
-          |. spaces
-          |> and_then (fun x -> x :: acc |> loop)
-      ; expect "end of block"
-      ]
-  in
-  loop []
-
-and control = fun st -> (|>) st &
   one_of
-    [ succeed (fun com -> Ast.And com)
-        |. keyword "and"
-        |= command
-    ; succeed (fun com -> Ast.Or com)
-        |. keyword "or"
-        |= command
-    ; succeed (fun body -> Ast.Begin body)
-        |. keyword "begin"
-        |= block
-        |. keyword "end"
-    ; succeed (fun cond body -> Ast.If (cond, body))
-        |. keyword "if"
-        |= block
-        |. keyword "then"
-        |= block
-        |. keyword "end"
-    ; succeed (fun cond body -> Ast.While (cond, body))
-        |. keyword "while"
-        |= block
-        |. keyword "do"
-        |= block
-        |. keyword "end"
-    ; succeed Ast.Break
+    [ succeed Ast.Break
         |. keyword "break"
     ; succeed Ast.Continue
         |. keyword "continue"
+    ; builtin
+    ; simple
+    ]
+
+let rec control = fun st -> (|>) st &
+  one_of
+    [ succeed (fun node redir -> Ast.Control (node, redir))
+        |= one_of
+            [ succeed (fun body -> Ast.Begin body)
+                |. keyword "begin"
+                |= compound
+            ; succeed (fun cond body -> Ast.If (cond, body))
+                |. keyword "if"
+                |= compound
+                |. keyword "then"
+                |= compound
+            ; succeed (fun cond body -> Ast.While (cond, body))
+                |. keyword "while"
+                |= compound
+                |. keyword "do"
+                |= compound
+            ]
+        |. keyword "end"
+        |= many redirection
     ; command
+    ]
+
+and conditional = fun st -> (|>) st &
+  one_of
+    [ succeed (fun com -> Ast.And com)
+        |. keyword "and"
+        |= control
+    ; succeed (fun com -> Ast.Or com)
+        |. keyword "or"
+        |= control
+    ; control
     ]
 
 and pipeline = fun st -> (|>) st &
@@ -135,17 +150,19 @@ and pipeline = fun st -> (|>) st &
       |. char '|'
       |. spaces
   in
-  chainl control op
+  chainl conditional op
 
 and compound = fun st -> (|>) st &
-  let delimiter =
-    char ';'
-      |. spaces
+  let aux =
+    look_ahead word
+      |> and_then
+          ( fun s ->
+              if is_reserved s then unexpect "reserved"
+              else pipeline
+          )
   in
   succeed (fun coms -> Ast.Compound coms)
-    |= sep_end_by1
-        delimiter
-        pipeline
+    |= sep_end_by1 delimiter aux
 
 let program =
   succeed identity

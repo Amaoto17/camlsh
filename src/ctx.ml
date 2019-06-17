@@ -5,6 +5,7 @@ open Unix
 
 type t =
   { mutable stack : string Stack.t
+  ; mutable buf : Buffer.t
   ; mutable loop_stack : (int * int) Stack.t
   ; mutable redir : redir
   ; vars : vars
@@ -35,6 +36,7 @@ let show t =
 
 let create () =
   { stack = Stack.create ()
+  ; buf = Buffer.create 32
   ; loop_stack = Stack.create ()
   ; redir =
       { input = None
@@ -161,6 +163,17 @@ let pop_all t =
       elem :: acc |> loop
   in
   loop [] |> Array.of_list
+
+
+(* buffer operation *)
+
+let add_buf t s =
+  Buffer.add_string t.buf s
+
+let emit_buf t =
+  let res = Buffer.contents t.buf in
+  Buffer.clear t.buf;
+  res
 
 
 (* handling loop *)

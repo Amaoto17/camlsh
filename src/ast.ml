@@ -8,21 +8,23 @@ type t =
   | Builtin of string * t list
   | Compound of t list
   | Continue
+  | Control of t * t list
+  | Elem of t list
   | External of t list
   | Identifier of string
   | If of t * t
   | Or of t
   | Pipe of t * t
-  | Stdin of string
-  | Stdout of string
+  | Stdin of t
+  | Stdout of t
   | While of t * t
   | Word of string
 
 let rec show = function
   | And node ->
       !% "(and %s)" (show node)
-  | Begin node ->
-      !% "(begin %s)" (show node)
+  | Begin body ->
+      !% "(begin %s)" (show body)
   | Break ->
       "break"
   | Builtin (op, nodes) ->
@@ -33,6 +35,11 @@ let rec show = function
         & nodes |> List.map show |> String.concat " "
   | Continue ->
       "continue"
+  | Control (node, redir) ->
+      !% "(control %s %s)" (show node)
+        & redir |> List.map show |> String.concat " "
+  | Elem nodes ->
+      !% "(elem %s)" & nodes |> List.map show |> String.concat " "
   | External nodes ->
       !% "(external %s)"
         & nodes |> List.map show |> String.concat " "
@@ -45,10 +52,10 @@ let rec show = function
   | Pipe (left, right) ->
       !% "(pipe %s %s)" (show left) (show right)
   | Stdin path ->
-      !% "(< %s)" path
+      !% "(< %s)" (show path)
   | Stdout path ->
-      !% "(> %s)" path
+      !% "(> %s)" (show path)
   | While (cond, body) ->
       !% "(while %s %s)" (show cond) (show body)
   | Word s ->
-      s
+      !% "(word %s)" s
