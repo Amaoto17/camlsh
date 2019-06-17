@@ -57,7 +57,7 @@ let execute ctx code =
   
   and exec ctx pc = function
     | Inst.Add_string s ->
-        Ctx.add_buf ctx s;
+        Ctx.add_string ctx s;
         fetch ctx & pc + 1
 
     | Inst.Begin ->
@@ -89,8 +89,8 @@ let execute ctx code =
         end
 
     | Inst.Emit_string ->
-        let s = Ctx.emit_buf ctx in
-        Ctx.push ctx s;
+        let ss = Ctx.emit_string ctx in
+        List.iter (Ctx.push ctx) ss;
         fetch ctx & pc + 1
 
     | Inst.End ->
@@ -169,19 +169,17 @@ let execute ctx code =
             close read;
             Ctx.set_stdout ctx write;
             Ctx.clear_stack ctx;
-            Ctx.clear_buf ctx;
+            Ctx.clear_string ctx;
             fetch ctx & pc + 2
         | _ ->
             close write;
             wait_child ctx;
             let res = in_channel_of_descr read in
-            try
-              Ctx.add_buf ctx (input_line res);
-              while true do
-                Ctx.add_buf ctx " ";
-                Ctx.add_buf ctx (input_line res)
-              done
-            with End_of_file -> ();
+            let rec loop acc =
+              try (input_line res) :: acc |> loop
+              with End_of_file -> List.rev acc
+            in
+            Ctx.add_string_list ctx (loop []);
             fetch ctx & pc + 1
         end
 
@@ -193,8 +191,8 @@ let execute ctx code =
     | Inst.Var ->
         let name = Ctx.pop ctx in
         begin match Ctx.find ctx name with
-        | None -> Ctx.add_buf ctx ""
-        | Some arr -> Array.iter (Ctx.add_buf ctx) arr
+        | None -> Ctx.add_empty ctx
+        | Some arr -> arr |> Array.to_list |> Ctx.add_string_list ctx
         end;
         fetch ctx & pc + 1
 

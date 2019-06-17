@@ -6,7 +6,7 @@ let nop () = ()
 
 type t =
   { mutable stack : string Stack.t
-  ; mutable buf : Buffer.t
+  ; mutable exp_buf : string list list
   ; mutable loop_stack : (int * int) Stack.t
   ; mutable redir : redir
   ; mutable return : (unit -> unit)
@@ -29,16 +29,25 @@ let show t =
   Buffer.add_string buf "|";
   Stack.iter
     ( fun s ->
-        Buffer.add_string buf " ";
+        Buffer.add_char buf ' ';
         Buffer.add_string buf s;
         Buffer.add_string buf " |"
     )
     t.stack;
+  Buffer.add_string buf "\n[";
+  List.iter
+    ( fun ss ->
+        Buffer.add_string buf " [";
+        Buffer.add_string buf (String.concat "; " ss);
+        Buffer.add_string buf "]"
+    )
+    t.exp_buf;
+  Buffer.add_string buf " ]";
   Buffer.contents buf
 
 let create () =
   { stack = Stack.create ()
-  ; buf = Buffer.create 32
+  ; exp_buf = []
   ; loop_stack = Stack.create ()
   ; redir =
       { input = None
@@ -177,17 +186,33 @@ let pop_all t =
 let clear_stack t = Stack.clear t.stack
 
 
-(* buffer operation *)
+(* handling expansion *)
 
-let add_buf t s =
-  Buffer.add_string t.buf s
+let rev_cartesian xss =
+  let tail_map f xs = xs |> List.rev_map f |> List.rev in
+  let rec loop acc = function
+    | [] -> acc
+    | xs :: xss ->
+        loop (tail_map (fun x -> tail_map (fun xs -> x :: xs) acc) xs |> List.concat) xss
+  in
+  loop [[]] xss
 
-let emit_buf t =
-  let res = Buffer.contents t.buf in
-  Buffer.clear t.buf;
-  res
+let add_empty t =
+  t.exp_buf <- [] :: t.exp_buf
 
-let clear_buf t = Buffer.clear t.buf
+let add_string t s =
+  t.exp_buf <- [s] :: t.exp_buf
+
+let add_string_list t ss =
+  t.exp_buf <- ss :: t.exp_buf
+
+let clear_string t =
+  t.exp_buf <- []
+
+let emit_string t =
+  let res = rev_cartesian t.exp_buf in
+  clear_string t;
+  List.map (String.concat "") res
 
 
 (* handling loop *)
