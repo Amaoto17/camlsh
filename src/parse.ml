@@ -28,7 +28,7 @@ let delimiter =
 let word =
   one_of
     [ succeed identity
-        |= many1 (not_in_class " |<>();$\n\r\t")
+        |= many1 (not_in_class " |<>(){},;$\n\r\t")
         |> concat
     ; expect "word"
     ]
@@ -56,15 +56,25 @@ let word_elem =
   succeed (fun s -> Ast.Word s)
     |= word
 
-let ident =
+let rec brace = fun st -> (|>) st &
+  one_of
+    [ succeed (fun nodes -> Ast.Brace nodes)
+        |. char '{'
+        |. spaces
+        |= sep_by1 (char ',' |. spaces) subst
+        |. char '}'
+    ; word_elem
+    ]
+
+and ident = fun st -> (|>) st &
   one_of
     [ succeed (fun name -> Ast.Identifier name)
         |. char '$'
         |= identifier
-    ; word_elem
+    ; brace
     ]
 
-let rec subst = fun st -> (|>) st &
+and subst = fun st -> (|>) st &
   one_of
     [ succeed (fun comp -> Ast.Subst comp)
         |. char '('

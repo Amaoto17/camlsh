@@ -89,6 +89,11 @@ let rec walk t = function
       Code.emit t & Inst.Begin;
       walk t body;
       Code.emit t & Inst.End
+
+  | Ast.Brace nodes ->
+      Code.emit t & Inst.Brace;
+      List.iter (walk t) nodes;
+      Code.emit t & Inst.Brace_end
     
   | Ast.Break ->
       Code.emit t & Inst.Break

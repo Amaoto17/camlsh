@@ -6,7 +6,7 @@ let nop () = ()
 
 type t =
   { mutable stack : string Stack.t
-  ; mutable exp_buf : string list list
+  ; mutable exp_buf : string list Stack.t Stack.t
   ; mutable loop_stack : (int * int) Stack.t
   ; mutable redir : redir
   ; mutable return : (unit -> unit)
@@ -35,19 +35,19 @@ let show t =
     )
     t.stack;
   Buffer.add_string buf "\n[";
-  List.iter
+  Stack.iter
     ( fun ss ->
         Buffer.add_string buf " [";
         Buffer.add_string buf (String.concat "; " ss);
         Buffer.add_string buf "]"
     )
-    t.exp_buf;
+    (Stack.top t.exp_buf);
   Buffer.add_string buf " ]";
   Buffer.contents buf
 
 let create () =
   { stack = Stack.create ()
-  ; exp_buf = []
+  ; exp_buf = Stack.create ()
   ; loop_stack = Stack.create ()
   ; redir =
       { input = None
@@ -188,7 +188,7 @@ let clear_stack t = Stack.clear t.stack
 
 (* handling expansion *)
 
-let rev_cartesian xss =
+(* let rev_cartesian xss =
   let tail_map f xs = xs |> List.rev_map f |> List.rev in
   let rec loop acc = function
     | [] -> acc
@@ -212,6 +212,40 @@ let clear_string t =
 let emit_string t =
   let res = rev_cartesian t.exp_buf in
   clear_string t;
+  List.map (String.concat "") res *)
+
+let cartesian acc xs =
+  List.map (fun x -> List.map (fun xs -> x :: xs) acc) xs |> List.concat
+
+let push_buf t =
+  Stack.push (Stack.create ()) t.exp_buf
+
+let pop_buf t =
+  Stack.pop t.exp_buf |> ignore
+
+let buf_top t =
+  Stack.top t.exp_buf
+
+let add_empty t =
+  Stack.push [] (buf_top t)
+
+let add_string t s =
+  Stack.push [s] (buf_top t)
+
+let add_string_list t ss =
+  Stack.push ss (buf_top t)
+
+let clear_buf t =
+  Stack.clear (buf_top t)
+
+let concat_string t =
+  let res = Stack.fold (fun xs x -> x :: xs) [] (buf_top t) in
+  clear_buf t;
+  res |> List.concat
+
+let emit_string t =
+  let res = Stack.fold cartesian [[]] (buf_top t) in
+  clear_buf t;
   List.map (String.concat "") res
 
 
@@ -238,4 +272,5 @@ let loop_end t =
 
 let init t =
   set_builtin t "status" [|"0"|];
+  push_buf t;
   new_env t

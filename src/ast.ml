@@ -4,6 +4,7 @@ open Util
 type t =
   | And of t
   | Begin of t
+  | Brace of t list
   | Break
   | Builtin of string * t list
   | Compound of t list
@@ -26,6 +27,9 @@ let rec show = function
       !% "(and %s)" (show node)
   | Begin body ->
       !% "(begin %s)" (show body)
+  | Brace nodes ->
+      !% "(brace %s)"
+        & nodes |> List.map show |> String.concat " "
   | Break ->
       "break"
   | Builtin (name, nodes) ->

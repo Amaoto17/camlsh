@@ -4,6 +4,8 @@ open Util
 type t =
   | Add_string of string
   | Begin
+  | Brace
+  | Brace_end
   | Break
   | Builtin
   | Continue
@@ -30,6 +32,8 @@ type t =
 let show = function
   | Add_string s -> !% "add_string %S" s
   | Begin -> "begin"
+  | Brace -> "brace"
+  | Brace_end -> "brace_end"
   | Break -> "break"
   | Builtin -> "builtin"
   | Continue -> "continue"

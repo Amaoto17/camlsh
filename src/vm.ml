@@ -70,6 +70,16 @@ let execute ctx code =
         exec_builtin ctx argv;
         fetch ctx & pc + 1
 
+    | Inst.Brace ->
+        Ctx.push_buf ctx;
+        fetch ctx & pc + 1
+
+    | Inst.Brace_end ->
+        let ss = Ctx.concat_string ctx in
+        Ctx.pop_buf ctx;
+        Ctx.add_string_list ctx ss;
+        fetch ctx & pc + 1
+
     | Inst.Break ->
         begin match Ctx.loop_end ctx with
         | None ->
@@ -169,7 +179,7 @@ let execute ctx code =
             close read;
             Ctx.set_stdout ctx write;
             Ctx.clear_stack ctx;
-            Ctx.clear_string ctx;
+            Ctx.clear_buf ctx;
             fetch ctx & pc + 2
         | _ ->
             close write;
