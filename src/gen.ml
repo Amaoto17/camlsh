@@ -158,6 +158,10 @@ let rec walk t = function
       walk t path;
       Code.emit t & Inst.Stdout
 
+  | Ast.Stdout_append path ->
+      walk t path;
+      Code.emit t & Inst.Stdout_append
+
   | Ast.Subst node ->
       Code.emit t & Inst.Subst;
       let _end = reserve t in

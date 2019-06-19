@@ -23,6 +23,8 @@ let symbol c =
   char c
     |. spaces
 
+let meta_chars = " |;,'$<>(){}\\"
+
 let control_char =
   in_class "abefnrtv"
     |> map
@@ -38,12 +40,12 @@ let control_char =
             | _ -> failwith "unreachable pattern: illegal control character"
         )
 
-let escaped_char meta_chars =
+let escaped_char chars =
   one_of
     [ succeed identity
         |. char '\\'
         |= one_of
-            [ in_class meta_chars
+            [ in_class chars
             ; control_char
             ; unexpect "illegal backslash escape"
             ]
@@ -53,7 +55,7 @@ let escaped_char meta_chars =
 let word =
   one_of
     [ succeed identity
-        |= many1 (escaped_char " |;,'$<>(){}\\")
+        |= many1 (escaped_char meta_chars)
         |> concat
     ; expect "word"
     ]
@@ -63,7 +65,7 @@ let keyword s =
     [ backtrack &
         succeed identity
           |= string s
-          |. not_followed_by (alpha_num <|> char '_')
+          |. not_followed_by (not_in_class meta_chars)
     ; expect (!% "keyword %S" s)
     ]
     |. spaces
@@ -132,12 +134,14 @@ and elem = fun st -> (|>) st &
 and redirection = fun st -> (|>) st &
   one_of
     [ succeed (fun path -> Ast.Stdin path)
-        |. symbol '<'
-        |= elem
+        |. char '<'
+    ; succeed (fun path -> Ast.Stdout_append path)
+        |. string ">>"
     ; succeed (fun path -> Ast.Stdout path)
-        |. symbol '>'
-        |= elem
+        |. char '>'
     ]
+    |. spaces
+    |= elem
     |. spaces
 
 and simple = fun st -> (|>) st &

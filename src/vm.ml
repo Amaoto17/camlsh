@@ -173,6 +173,12 @@ let execute ctx code =
         Ctx.set_stdout ctx dst;
         fetch ctx & pc + 1
 
+    | Inst.Stdout_append ->
+        let path = Ctx.pop ctx in
+        let dst = openfile path [O_WRONLY; O_APPEND] 0o644 in
+        Ctx.set_stdout ctx dst;
+        fetch ctx & pc + 1
+
     | Inst.Subst ->
         let (read, write) = pipe () in
         begin match fork () with

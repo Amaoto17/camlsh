@@ -18,6 +18,7 @@ type t =
   | Pipe of t * t
   | Stdin of t
   | Stdout of t
+  | Stdout_append of t
   | Subst of t
   | While of t * t
   | Word of string
@@ -28,26 +29,21 @@ let rec show = function
   | Begin body ->
       !% "(begin %s)" (show body)
   | Brace nodes ->
-      !% "(brace %s)"
-        & nodes |> List.map show |> String.concat " "
+      !% "(brace %s)" (show_list nodes)
   | Break ->
       "break"
   | Builtin (name, nodes) ->
-      !% "(builtin %s %s)" name
-        & nodes |> List.map show |> String.concat " "
+      !% "(builtin %s %s)" name (show_list nodes)
   | Compound nodes ->
-      !% "%s"
-        & nodes |> List.map show |> String.concat " "
+      !% "%s" (show_list nodes)
   | Continue ->
       "continue"
   | Control (node, redir) ->
-      !% "(control %s %s)" (show node)
-        & redir |> List.map show |> String.concat " "
+      !% "(control %s %s)" (show node) (show_list redir)
   | Elem nodes ->
-      !% "(elem %s)" & nodes |> List.map show |> String.concat " "
+      !% "(elem %s)" (show_list nodes)
   | External nodes ->
-      !% "(external %s)"
-        & nodes |> List.map show |> String.concat " "
+      !% "(external %s)" (show_list nodes)
   | Identifier name ->
       !% "(identifier %s)" name
   | If (cond, body) ->
@@ -60,9 +56,13 @@ let rec show = function
       !% "(< %s)" (show path)
   | Stdout path ->
       !% "(> %s)" (show path)
+  | Stdout_append path ->
+      !% "(>> %s)" (show path)
   | Subst node ->
       !% "(subst %s)" (show node)
   | While (cond, body) ->
       !% "(while %s %s)" (show cond) (show body)
   | Word s ->
       !% "(word %s)" s
+
+and show_list xs = xs |> List.map show |> String.concat " "

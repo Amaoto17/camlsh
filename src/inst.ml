@@ -23,6 +23,7 @@ type t =
   | Return
   | Stdin
   | Stdout
+  | Stdout_append
   | Subst
   | Unless
   | Var
@@ -51,6 +52,7 @@ let show = function
   | Return -> "return"
   | Stdin -> "stdin"
   | Stdout -> "stdout"
+  | Stdout_append -> "stdout_append"
   | Subst -> "subst"
   | Unless -> "unless"
   | Var -> "var"
