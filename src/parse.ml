@@ -25,10 +25,57 @@ let delimiter =
     ]
     |. spaces
 
+(* let escaped_char =
+  one_of
+    [ succeed identity
+        |. char '\\'
+        |= one_of
+            [ char '\\'
+            ; char '\''
+            ; unexpect "illegal backslash escape"
+            ]
+    ; not_in_class "'"
+    ] *)
+
+let control_char =
+  in_class "abefnrtv"
+    |> map
+        ( function
+            | 'a' -> '\x07'
+            | 'b' -> '\x08'
+            | 'e' -> '\x1b'
+            | 'f' -> '\x0c'
+            | 'n' -> '\x0a'
+            | 'r' -> '\x0d'
+            | 't' -> '\x09'
+            | 'v' -> '\x0b'
+            | _ -> failwith "illegal control character"
+        )
+
+let escaped_char meta_chars =
+  one_of
+    [ succeed identity
+        |. char '\\'
+        |= one_of
+            [ in_class meta_chars
+            ; control_char
+            ; unexpect "illegal backslash escape"
+            ]
+    ; not_in_class meta_chars
+    ]
+
+let any_word =
+  one_of
+    [ succeed identity
+        |= many1 (escaped_char "\'\\")
+        |> concat
+    ; expect "word"
+    ]
+
 let word =
   one_of
     [ succeed identity
-        |= many1 (not_in_class " |<>(){},;$\n\r\t")
+        |= many1 (escaped_char " |;,'$<>(){}\\")
         |> concat
     ; expect "word"
     ]
@@ -86,8 +133,17 @@ and subst = fun st -> (|>) st &
 
 and elem = fun st -> (|>) st &
   succeed (fun nodes -> Ast.Elem nodes)
-    |= many1 subst
+    |= many1
+        ( one_of
+            [ succeed (fun s -> Ast.Word s)
+                |. char '\''
+                |= any_word
+                |. char '\''
+            ; subst
+            ]
+        )
     |. spaces
+
 
 and redirection = fun st -> (|>) st &
   one_of

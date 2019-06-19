@@ -14,23 +14,37 @@ let dump_code =
         eprintf "%s\n%!" s
     )
 
+exception Interruption
+
+let sig_handler _ = raise Interruption
+
+let rec main_loop ctx =
+  try
+    while true do
+      printf "[%s]\n" (getcwd () |> Deco.colorize `Yellow);
+      printf "%% ";
+      let input = read_line () in
+        match Parse.parse input with
+        | Ok ast ->
+            eprintf "%s\n%!" (Ast.show ast |> Deco.colorize `Cyan);
+            let code = Gen.compile ast in
+            dump_code code;
+            Vm.execute ctx code;
+            ()
+        | Error msg ->
+            eprintf "%s\n%!" (msg |> Deco.colorize `Red)
+    done
+  with
+    | End_of_file -> exit 0
+    | Interruption ->
+        Ctx.return ctx;
+        Ctx.reset_redir ctx;
+        eprintf "interrupted.\n%!";
+        main_loop ctx
+
 
 let main =
+  Sys.set_signal Sys.sigint (Signal_handle sig_handler);
   let ctx = Ctx.create () in
   Ctx.init ctx;
-  while true do
-    printf "[%s]\n" (getcwd () |> Deco.colorize `Yellow);
-    printf "%% ";
-    let input = read_line () in
-    try
-      match Parse.parse input with
-      | Ok ast ->
-          eprintf "%s\n%!" (Ast.show ast |> Deco.colorize `Cyan);
-          let code = Gen.compile ast in
-          dump_code code;
-          Vm.execute ctx code;
-          ()
-      | Error msg ->
-          eprintf "%s\n%!" (msg |> Deco.colorize `Red)
-    with End_of_file -> exit 0
-  done
+  main_loop ctx

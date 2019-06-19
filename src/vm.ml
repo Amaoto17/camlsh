@@ -112,6 +112,7 @@ let execute ctx code =
         begin match fork () with
         | 0 ->
             Ctx.do_redirection ctx;
+            Sys.set_signal Sys.sigint Signal_default;
             execvp argv.(0) argv
         | _ ->
             wait_child ctx;
