@@ -20,9 +20,6 @@ let wait_child ctx =
   status_num status |> Ctx.set_status ctx
 
 
-let init ctx =
-  Ctx.new_env ctx
-
 let exec_builtin ctx argv =
   let argc = Array.length argv in
   let status =
@@ -42,6 +39,7 @@ let exec_builtin ctx argv =
         1
   in
   Ctx.set_status ctx status
+
 
 let execute ctx code =
   let rec fetch ctx pc =
@@ -116,6 +114,7 @@ let execute ctx code =
             eprintf "'continue' while not inside of loop\n%!";
             fetch ctx & pc + 1
         | Some st ->
+            Ctx.delete_env_all ctx;
             fetch ctx st
         end
 
@@ -151,6 +150,24 @@ let execute ctx code =
 
     | Inst.Exit ->
         exit 0
+
+    | Inst.For (st, ed) ->
+        let values = Ctx.pop_all ctx |> Array.to_list in
+        Ctx.push_frame ~iteration:(st, ed, values) ctx;
+        fetch ctx & pc + 1
+
+    | Inst.For_iter ->
+        let name = Ctx.pop ctx in
+        if name = "" then fetch ctx & pc + 1
+        else
+          let value = Ctx.take_iter_val ctx in
+          begin match value with
+          | None ->
+              fetch ctx & pc + 1
+          | Some v ->
+              Ctx.set_local ctx name v;
+              fetch ctx & pc + 2
+          end
 
     | Inst.If ->
         let status = Ctx.get_status ctx in
@@ -260,7 +277,7 @@ let execute ctx code =
         fetch ctx & pc + 1
 
     | Inst.While (st, ed) ->
-        Ctx.push_frame ~loop_range:(st, ed) ctx;
+        Ctx.push_frame ~iteration:(st, ed, []) ctx;
         fetch ctx & pc + 1
   in
 

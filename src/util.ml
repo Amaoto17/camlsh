@@ -80,11 +80,6 @@ module Env = struct
     let env = create () in
     { env with parent = None; outer = Some t }
 
-  let pop_env t =
-    match t.outer with
-    | None -> failwith "no outer environment"
-    | Some env -> env
-
   let rec find t key =
     match Hashtbl.find_opt t.vars key with
     | Some v -> Some v

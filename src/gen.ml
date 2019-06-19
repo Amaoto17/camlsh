@@ -1,55 +1,3 @@
-(*
-
-simple:
-  % ls
-  push "ls"
-  exec
-
-redirection:
-  % ls > file.txt
-  push "ls"
-  push "file.txt"
-  stdout
-  exec
-    
-pipeline:
-  % ls | head
-    pipe
-    jump 0: ;jump to parent
-;child
-    push "ls"
-    exec
-    exit
-;parent
-  0:
-    push "head"
-    exec
-    wait
-
-pipeline3:
-  % ls | sort | head
-    pipe
-    jump 0: ;jump to parent
-;child
-    pipe
-    jump 1: ;jump to parent
-;parent
-    push "ls"
-    exec
-    exit
-;child
-    push "sort"
-    exec
-    wait
-    exit
-;parent
-  0:
-    push "head"
-    exec
-    wait
-
-*)
-
 open Util
 
 
@@ -130,6 +78,20 @@ let rec walk t = function
   | Ast.External nodes ->
       List.iter (walk t) nodes;
       Code.emit t & Inst.Exec
+
+  | Ast.For (ident, values, body) ->
+      List.iter (walk t) values;
+      let _for = reserve t in
+      let _start = Code.length t in
+      walk t ident;
+      Code.emit t & Inst.For_iter;
+      let _iter = reserve t in
+      walk t body;
+      Code.emit t & Inst.Jump _start;
+      let _end = Code.length t in
+      Code.emit t & Inst.Loop_end;
+      Code.set t _iter & Inst.Jump _end;
+      Code.set t _for & Inst.For (_start, _end)
 
   | Ast.Identifier name ->
       Code.emit t & Inst.Push name;

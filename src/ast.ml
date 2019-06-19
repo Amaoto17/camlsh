@@ -13,6 +13,7 @@ type t =
   | Control of t * t list
   | Elem of t list
   | External of t list
+  | For of t * t list * t
   | Identifier of string
   | If of t * t
   | Or of t
@@ -52,6 +53,8 @@ let rec show = function
       !% "(elem %s)" (show_list nodes)
   | External nodes ->
       !% "(external %s)" (show_list nodes)
+  | For (ident, values, body) ->
+      !% "(for %s %s %s)" (show ident) (show_list values) (show body)
   | Identifier name ->
       !% "(identifier %s)" name
   | If (cond, body) ->

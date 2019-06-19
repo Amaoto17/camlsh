@@ -14,6 +14,8 @@ type t =
   | End
   | Exec
   | Exit
+  | For of int * int
+  | For_iter
   | If
   | Jump of int
   | Leave
@@ -46,6 +48,8 @@ let show = function
   | End -> "end"
   | Exec -> "exec"
   | Exit -> "exit"
+  | For (st, ed) -> !% "for %d..%d" st ed
+  | For_iter -> "for_iter"
   | If -> "if"
   | Jump pos -> !% "jump -> %02d" pos
   | Leave -> "leave"

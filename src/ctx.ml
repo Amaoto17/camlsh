@@ -14,7 +14,7 @@ type t =
 and frame =
   { stack : string Stack.t
   ; exp_buf : string list Stack.t
-  ; loop_range : (int * int) option
+  ; mutable iteration : (int * int * string list) option
   ; mutable local : string array Env.t
   }
 
@@ -32,21 +32,22 @@ and vars =
 
 (* operation for control_stack *)
 
-let new_frame loop_range =
+let new_frame () =
   { stack = Stack.create ()
   ; exp_buf = Stack.create ()
-  ; loop_range = loop_range
+  ; iteration = None
   ; local = Env.create ()
   }
 
 let current_frame t =
   fst t.control_stack
 
-let push_frame ?loop_range t =
+let push_frame ?iteration t =
   let (current, stack) = t.control_stack in
   Stack.push current stack;
-  let fr = new_frame loop_range in
-  fr.local <- Env.new_env current.local;
+  let fr = new_frame () in
+  fr.local <- Env.put_env current.local;
+  fr.iteration <- iteration;
   t.control_stack <- (fr, stack)
 
 let pop_frame t =
@@ -248,21 +249,32 @@ let emit_string t =
 
 let loop_start t =
   let fr = current_frame t in
-  match fr.loop_range with
+  match fr.iteration with
   | None -> None
-  | Some (st, _) -> Some st
+  | Some (st, _, _) -> Some st
 
 let loop_end t =
   let fr = current_frame t in
-  match fr.loop_range with
+  match fr.iteration with
   | None -> None
-  | Some (_, ed) -> Some ed
+  | Some (_, ed, _) -> Some ed
+
+let take_iter_val t =
+  let fr = current_frame t in
+  match fr.iteration with
+  | None -> None
+  | Some (st, ed, values) ->
+      match values with
+      | [] -> None
+      | x :: xs ->
+          fr.iteration <- Some (st, ed, xs);
+          Some [|x|]
 
 
 (* initialization and utilities *)
 
 let create () =
-  { control_stack = (new_frame None, Stack.create ())
+  { control_stack = (new_frame (), Stack.create ())
   ; redir =
       { input = None
       ; output = None

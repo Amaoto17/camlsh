@@ -12,9 +12,10 @@ open Util
 
 
 let reserved =
-  [ "end"
+  [ "do"
+  ; "end"
+  ; "in"
   ; "then"
-  ; "do"
   ]
 
 let is_reserved s = List.mem s reserved
@@ -23,7 +24,7 @@ let symbol c =
   char c
     |. spaces
 
-let meta_chars = " |;,'^$<>(){}[]\\"
+let meta_chars = " |;,'^$<>(){}\\"
 
 let control_char =
   in_class "abefnrtv"
@@ -49,7 +50,7 @@ let escaped_char chars =
             ; control_char
             ; unexpect "illegal backslash escape"
             ]
-    ; not_in_class meta_chars
+    ; not_in_class chars
     ]
 
 let word =
@@ -86,7 +87,7 @@ let single_quoted =
         [ succeed identity
             |= many1 (escaped_char "\'\\")
             |> concat
-        ; expect "word"
+        ; expect "quoted word"
         ]
     |. char '\''
 
@@ -209,6 +210,14 @@ and control = fun st -> (|>) st &
             ; succeed (fun cond body -> Ast.While (cond, body))
                 |. keyword "while"
                 |= compound
+                |. keyword "do"
+                |= compound
+            ; succeed (fun ident values body -> Ast.For (ident, values, body))
+                |. keyword "for"
+                |= elem
+                |. keyword "in"
+                |= many elem
+                |. symbol ';'
                 |. keyword "do"
                 |= compound
             ]
