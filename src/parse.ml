@@ -19,23 +19,9 @@ let reserved =
 
 let is_reserved s = List.mem s reserved
 
-let delimiter =
-  one_of
-    [ char ';'
-    ]
+let symbol c =
+  char c
     |. spaces
-
-(* let escaped_char =
-  one_of
-    [ succeed identity
-        |. char '\\'
-        |= one_of
-            [ char '\\'
-            ; char '\''
-            ; unexpect "illegal backslash escape"
-            ]
-    ; not_in_class "'"
-    ] *)
 
 let control_char =
   in_class "abefnrtv"
@@ -49,7 +35,7 @@ let control_char =
             | 'r' -> '\x0d'
             | 't' -> '\x09'
             | 'v' -> '\x0b'
-            | _ -> failwith "illegal control character"
+            | _ -> failwith "unreachable pattern: illegal control character"
         )
 
 let escaped_char meta_chars =
@@ -62,14 +48,6 @@ let escaped_char meta_chars =
             ; unexpect "illegal backslash escape"
             ]
     ; not_in_class meta_chars
-    ]
-
-let any_word =
-  one_of
-    [ succeed identity
-        |= many1 (escaped_char "\'\\")
-        |> concat
-    ; expect "word"
     ]
 
 let word =
@@ -99,6 +77,17 @@ let identifier =
     ; expect "identifier"
     ]
 
+let single_quoted =
+  succeed (fun s -> Ast.Word s)
+    |. char '\''
+    |= one_of
+        [ succeed identity
+            |= many1 (escaped_char "\'\\")
+            |> concat
+        ; expect "word"
+        ]
+    |. char '\''
+
 let word_elem =
   succeed (fun s -> Ast.Word s)
     |= word
@@ -106,8 +95,7 @@ let word_elem =
 let rec brace = fun st -> (|>) st &
   one_of
     [ succeed (fun nodes -> Ast.Brace nodes)
-        |. char '{'
-        |. spaces
+        |. symbol '{'
         |= sep_by1 (char ',' |. spaces) subst
         |. char '}'
     ; word_elem
@@ -124,8 +112,7 @@ and ident = fun st -> (|>) st &
 and subst = fun st -> (|>) st &
   one_of
     [ succeed (fun comp -> Ast.Subst comp)
-        |. char '('
-        |. spaces
+        |. symbol '('
         |= compound
         |. char ')'
     ; ident
@@ -135,10 +122,7 @@ and elem = fun st -> (|>) st &
   succeed (fun nodes -> Ast.Elem nodes)
     |= many1
         ( one_of
-            [ succeed (fun s -> Ast.Word s)
-                |. char '\''
-                |= any_word
-                |. char '\''
+            [ single_quoted
             ; subst
             ]
         )
@@ -148,12 +132,10 @@ and elem = fun st -> (|>) st &
 and redirection = fun st -> (|>) st &
   one_of
     [ succeed (fun path -> Ast.Stdin path)
-        |. char '<'
-        |. spaces
+        |. symbol '<'
         |= elem
     ; succeed (fun path -> Ast.Stdout path)
-        |. char '>'
-        |. spaces
+        |. symbol '>'
         |= elem
     ]
     |. spaces
@@ -222,8 +204,7 @@ and conditional = fun st -> (|>) st &
 and pipeline = fun st -> (|>) st &
   let op =
     succeed (fun left right -> Ast.Pipe (left, right))
-      |. char '|'
-      |. spaces
+      |. symbol '|'
   in
   chainl conditional op
 
@@ -237,7 +218,7 @@ and compound = fun st -> (|>) st &
           )
   in
   succeed (fun coms -> Ast.Compound coms)
-    |= sep_end_by1 delimiter aux
+    |= sep_end_by1 (symbol ';') aux
 
 let program =
   succeed identity
