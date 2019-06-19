@@ -23,7 +23,7 @@ let symbol c =
   char c
     |. spaces
 
-let meta_chars = " |;,'$<>(){}\\"
+let meta_chars = " |;,'^$<>(){}\\"
 
 let control_char =
   in_class "abefnrtv"
@@ -139,6 +139,10 @@ and redirection = fun st -> (|>) st &
         |. string ">>"
     ; succeed (fun path -> Ast.Stdout path)
         |. char '>'
+    ; succeed (fun path -> Ast.Stderr_append path)
+        |. string "^^"
+    ; succeed (fun path -> Ast.Stderr path)
+        |. char '^'
     ]
     |. spaces
     |= elem

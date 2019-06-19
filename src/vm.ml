@@ -111,9 +111,18 @@ let execute ctx code =
         let argv = Ctx.pop_all ctx in
         begin match fork () with
         | 0 ->
-            Ctx.do_redirection ctx;
             Sys.set_signal Sys.sigint Signal_default;
-            execvp argv.(0) argv
+            begin
+              try
+                Ctx.do_redirection ctx;
+                execvp argv.(0) argv
+              with
+                | Unix_error(Unix.ENOENT, _, name) ->
+                    eprintf "camlsh: unknown command %s\n%!" name;
+                    exit 127
+                | _ ->
+                    exit 127
+            end
         | _ ->
             wait_child ctx;
             fetch ctx & pc + 1
@@ -161,6 +170,18 @@ let execute ctx code =
         Ctx.return ctx;
         fetch ctx & pc + 1
 
+    | Inst.Stderr ->
+        let path = Ctx.pop ctx in
+        let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
+        Ctx.set_stderr ctx dst;
+        fetch ctx & pc + 1
+
+    | Inst.Stderr_append ->
+        let path = Ctx.pop ctx in
+        let dst = openfile path [O_WRONLY; O_APPEND] 0o644 in
+        Ctx.set_stderr ctx dst;
+        fetch ctx & pc + 1
+
     | Inst.Stdin ->
         let path = Ctx.pop ctx in
         let src = openfile path [O_RDONLY] 0 in
@@ -191,12 +212,13 @@ let execute ctx code =
         | _ ->
             close write;
             wait_child ctx;
-            let res = in_channel_of_descr read in
+            let in_ch = in_channel_of_descr read in
             let rec loop acc =
-              try (input_line res) :: acc |> loop
+              try (input_line in_ch) :: acc |> loop
               with End_of_file -> List.rev acc
             in
             Ctx.add_string_list ctx (loop []);
+            close_in in_ch;
             fetch ctx & pc + 1
         end
 

@@ -150,6 +150,14 @@ let rec walk t = function
       walk t right;
       Code.emit t & Inst.Wait
 
+  | Ast.Stderr path ->
+      walk t path;
+      Code.emit t & Inst.Stderr
+
+  | Ast.Stderr_append path ->
+      walk t path;
+      Code.emit t & Inst.Stderr_append
+
   | Ast.Stdin path ->
       walk t path;
       Code.emit t & Inst.Stdin
