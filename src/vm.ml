@@ -60,6 +60,27 @@ let execute ctx code =
         Ctx.add_string ctx s;
         fetch ctx & pc + 1
 
+    | Inst.Array_ref (st, ed) ->
+        let arr = Ctx.take_string ctx |> Array.of_list in
+        let len = Array.length arr in
+        (* translate negative number *)
+        let st = if st < 0 then len + st else st - 1 in
+        let ed = if ed < 0 then len + ed else ed - 1 in
+        (* swap *)
+        let (st, ed, swapped) = if ed < st then (ed, st, true) else (st, ed, false) in
+        (* result is empty when index is out of range *)
+        if st >= len || ed < 0 then Ctx.add_empty ctx
+        else begin
+          (* truncate *)
+          let st = max st 0 in
+          let ed = min ed (len - 1) in
+          (* slice *)
+          let sliced = Array.sub arr st (ed - st + 1) |> Array.to_list in
+          let sliced = if swapped then List.rev sliced else sliced in
+          Ctx.add_string_list ctx sliced
+        end;
+        fetch ctx & pc + 1
+
     | Inst.Begin ->
         Ctx.new_env ctx;
         fetch ctx & pc + 1

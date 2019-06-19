@@ -237,6 +237,9 @@ let concat_string t =
   clear_buf t;
   res |> List.concat
 
+let take_string t =
+  Stack.pop (buf_top t)
+
 let emit_string t =
   let res = Stack.fold cartesian [[]] (buf_top t) in
   clear_buf t;
@@ -268,3 +271,15 @@ let init t =
   set_builtin t "status" [|"0"|];
   push_buf t;
   new_env t
+
+let reset_all t =
+  return t;
+  reset_redir t;
+  Stack.clear t.stack;
+  Stack.clear t.exp_buf;
+  push_buf t;
+  while not (Stack.is_empty t.loop_stack) do
+    exit_loop t
+  done;
+  try while true do delete_env t done
+  with _ -> ()

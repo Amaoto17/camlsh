@@ -85,6 +85,15 @@ let rec walk t = function
       walk t node;
       insert_jump t _end
 
+  | Ast.Array_ref (node, st, ed) ->
+      walk t node;
+      let ed =
+        match ed with
+        | None -> st
+        | Some n -> n
+      in
+      Code.emit t & Array_ref (st, ed)
+
   | Ast.Begin body ->
       Code.emit t & Inst.Begin;
       walk t body;

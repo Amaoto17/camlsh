@@ -23,7 +23,7 @@ let symbol c =
   char c
     |. spaces
 
-let meta_chars = " |;,'^$<>(){}\\"
+let meta_chars = " |;,'^$<>(){}[]\\"
 
 let control_char =
   in_class "abefnrtv"
@@ -94,6 +94,23 @@ let word_elem =
   succeed (fun s -> Ast.Word s)
     |= word
 
+let array_ref node =
+  one_of
+    [ succeed (fun st ed -> Ast.Array_ref (node, st, ed))
+        |. char '['
+        |= int
+        |= option
+            ( succeed identity
+                |. spaces
+                |. string ".."
+                |. spaces
+                |= int
+            )
+        |. spaces
+        |. char ']'
+    ; succeed node
+    ]
+
 let rec brace = fun st -> (|>) st &
   one_of
     [ succeed (fun nodes -> Ast.Brace nodes)
@@ -108,6 +125,7 @@ and ident = fun st -> (|>) st &
     [ succeed (fun name -> Ast.Identifier name)
         |. char '$'
         |= identifier
+        |> and_then array_ref
     ; brace
     ]
 
@@ -117,6 +135,7 @@ and subst = fun st -> (|>) st &
         |. symbol '('
         |= compound
         |. char ')'
+        |> and_then array_ref
     ; ident
     ]
 

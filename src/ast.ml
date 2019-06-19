@@ -3,6 +3,7 @@ open Util
 
 type t =
   | And of t
+  | Array_ref of t * int * int option
   | Begin of t
   | Brace of t list
   | Break
@@ -28,6 +29,11 @@ type t =
 let rec show = function
   | And node ->
       !% "(and %s)" (show node)
+  | Array_ref (node, st, ed) ->
+      begin match ed with
+      | None -> !% "(array_ref %s[%d])" (show node) st
+      | Some ed -> !% "(array_ref %s[%d..%d])" (show node) st ed
+      end
   | Begin body ->
       !% "(begin %s)" (show body)
   | Brace nodes ->

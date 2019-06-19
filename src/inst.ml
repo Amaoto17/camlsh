@@ -3,6 +3,7 @@ open Util
 
 type t =
   | Add_string of string
+  | Array_ref of int * int
   | Begin
   | Brace
   | Brace_end
@@ -34,6 +35,7 @@ type t =
 
 let show = function
   | Add_string s -> !% "add_string %S" s
+  | Array_ref (st, ed) -> !% "array_ref %d..%d" st ed
   | Begin -> "begin"
   | Brace -> "brace"
   | Brace_end -> "brace_end"

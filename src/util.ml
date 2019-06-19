@@ -2,6 +2,11 @@ external (&) : ('a -> 'b) -> 'a -> 'b = "%apply"
 let (!%) = Printf.sprintf
 
 
+exception Shell_error of string
+
+let shell_error msg = Shell_error msg |> raise
+
+
 module Deco = struct
   let colorize color s =
     match color with
