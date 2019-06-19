@@ -4,13 +4,18 @@ open Unix
 
 let nop () = ()
 
-type t =
-  { stack : string Stack.t
-  ; exp_buf : string list Stack.t Stack.t
-  ; loop_stack : (int * int) Stack.t
-  ; mutable redir : redir
+type t = 
+  { mutable control_stack : frame * frame Stack.t
+  ; redir : redir
   ; mutable return : (unit -> unit)
   ; vars : vars
+  }
+
+and frame =
+  { stack : string Stack.t
+  ; exp_buf : string list Stack.t
+  ; loop_range : (int * int) option
+  ; mutable local : string array Env.t
   }
 
 and redir =
@@ -22,66 +27,65 @@ and redir =
 and vars =
   { builtin : string array Env.t
   ; global : string array Env.t
-  ; mutable local : string array Env.t
   }
 
-let show t =
-  let buf = Buffer.create 64 in
-  Buffer.add_string buf "|";
-  Stack.iter
-    ( fun s ->
-        Buffer.add_char buf ' ';
-        Buffer.add_string buf s;
-        Buffer.add_string buf " |"
-    )
-    t.stack;
-  Buffer.add_string buf "\n|";
-  Stack.iter
-    ( fun ss ->
-        Buffer.add_string buf " [";
-        Buffer.add_string buf (String.concat "; " ss);
-        Buffer.add_string buf "] |"
-    )
-    (Stack.top t.exp_buf);
-  Buffer.contents buf
 
-let create () =
+(* operation for control_stack *)
+
+let new_frame loop_range =
   { stack = Stack.create ()
   ; exp_buf = Stack.create ()
-  ; loop_stack = Stack.create ()
-  ; redir =
-      { input = None
-      ; output = None
-      ; error = None
-      }
-  ; return = nop
-  ; vars =
-      { builtin = Env.create ()
-      ; global = Env.create ()
-      ; local = Env.create ()
-      }
+  ; loop_range = loop_range
+  ; local = Env.create ()
   }
+
+let current_frame t =
+  fst t.control_stack
+
+let push_frame ?loop_range t =
+  let (current, stack) = t.control_stack in
+  Stack.push current stack;
+  let fr = new_frame loop_range in
+  fr.local <- Env.new_env current.local;
+  t.control_stack <- (fr, stack)
+
+let pop_frame t =
+  let (_, stack) = t.control_stack in
+  let current = Stack.pop stack in
+  t.control_stack <- (current, stack)
+
+let rec pop_frame_all t =
+  let (_, stack) = t.control_stack in
+  if not (Stack.is_empty stack) then begin
+    pop_frame t;
+    pop_frame_all t
+  end
+
 
 (* handling variables *)
 
 let new_env t =
-  let local = t.vars.local in
-  t.vars.local <- Env.new_env local
+  let fr = current_frame t in
+  fr.local <- Env.new_env fr.local
 
 let delete_env t =
-  let local = t.vars.local in
-  t.vars.local <- Env.delete_env local
+  let fr = current_frame t in
+  match Env.delete_env fr.local with
+  | None -> ()
+  | Some env -> fr.local <- env
 
-let put_env t =
-  let local = t.vars.local in
-  t.vars.local <- Env.put_env local
-
-let pop_env t =
-  let local = t.vars.local in
-  t.vars.local <- Env.pop_env local
+let delete_env_all t =
+  let fr = current_frame t in
+  let rec loop env =
+    match Env.delete_env env with
+    | None -> fr.local <- env
+    | Some env' -> loop env'
+  in
+  loop fr.local
 
 let find t key =
-  match Env.find t.vars.local key with
+  let fr = current_frame t in
+  match Env.find fr.local key with
   | Some v -> Some v
   | None ->
       match Env.find t.vars.global key with
@@ -90,7 +94,6 @@ let find t key =
           match Env.find t.vars.builtin key with
           | Some v -> Some v
           | None -> None
-
 
 let set_builtin t = Env.set t.vars.builtin
 
@@ -103,9 +106,11 @@ let set_status t v =
   Env.set t.vars.builtin "status" [|string_of_int v|]
 
 let set_local t key v =
+  let fr = current_frame t in
   match Env.find t.vars.builtin key with
-  | None -> Env.set t.vars.local key v
+  | None -> Env.set fr.local key v
   | Some _ -> failwith (!% "'%s' is read-only variable" key)
+
 
 (* redirection *)
 
@@ -190,20 +195,19 @@ let safe_redirection t =
 
 (* stack operation *)
 
-let push t s = Stack.push s t.stack
+let push t s =
+  let fr = current_frame t in
+  Stack.push s fr.stack
 
-let pop t = Stack.pop t.stack
+let pop t =
+  let fr = current_frame t in
+  Stack.pop fr.stack
 
 let pop_all t =
-  let rec loop acc =
-    if Stack.is_empty t.stack then acc
-    else
-      let elem = Stack.pop t.stack in
-      elem :: acc |> loop
-  in
-  loop [] |> Array.of_list
-
-let clear_stack t = Stack.clear t.stack
+  let fr = current_frame t in
+  let res = Stack.fold (fun xs x -> x :: xs) [] fr.stack in
+  Stack.clear fr.stack;
+  res |> Array.of_list
 
 
 (* handling expansion *)
@@ -211,75 +215,84 @@ let clear_stack t = Stack.clear t.stack
 let cartesian acc xs =
   List.map (fun x -> List.map (fun xs -> x :: xs) acc) xs |> List.concat
 
-let push_buf t =
-  Stack.push (Stack.create ()) t.exp_buf
-
-let pop_buf t =
-  Stack.pop t.exp_buf |> ignore
-
-let buf_top t =
-  Stack.top t.exp_buf
-
 let add_empty t =
-  Stack.push [] (buf_top t)
+  let fr = current_frame t in
+  Stack.push [] fr.exp_buf
 
 let add_string t s =
-  Stack.push [s] (buf_top t)
+  let fr = current_frame t in
+  Stack.push [s] fr.exp_buf
 
 let add_string_list t ss =
-  Stack.push ss (buf_top t)
-
-let clear_buf t =
-  Stack.clear (buf_top t)
-
-let concat_string t =
-  let res = Stack.fold (fun xs x -> x :: xs) [] (buf_top t) in
-  clear_buf t;
-  res |> List.concat
+  let fr = current_frame t in
+  Stack.push ss fr.exp_buf
 
 let take_string t =
-  Stack.pop (buf_top t)
+  let fr = current_frame t in
+  Stack.pop fr.exp_buf
+
+let concat_string t =
+  let fr = current_frame t in
+  let res = Stack.fold (fun xs x -> x :: xs) [] fr.exp_buf in
+  Stack.clear fr.exp_buf;
+  res |> List.concat
 
 let emit_string t =
-  let res = Stack.fold cartesian [[]] (buf_top t) in
-  clear_buf t;
+  let fr = current_frame t in
+  let res = Stack.fold cartesian [[]] fr.exp_buf in
+  Stack.clear fr.exp_buf;
   List.map (String.concat "") res
 
 
 (* handling loop *)
 
-let begin_loop t st ed =
-  put_env t;
-  Stack.push (st, ed) t.loop_stack
-
-let exit_loop t =
-  pop_env t;
-  Stack.pop t.loop_stack |> ignore
-
 let loop_start t =
-  if Stack.is_empty t.loop_stack then None
-  else let (st, _) = Stack.top t.loop_stack in Some st
+  let fr = current_frame t in
+  match fr.loop_range with
+  | None -> None
+  | Some (st, _) -> Some st
 
 let loop_end t =
-  if Stack.is_empty t.loop_stack then None
-  else let (_, ed) = Stack.top t.loop_stack in Some ed
+  let fr = current_frame t in
+  match fr.loop_range with
+  | None -> None
+  | Some (_, ed) -> Some ed
 
 
-(* initialization *)
+(* initialization and utilities *)
+
+let create () =
+  { control_stack = (new_frame None, Stack.create ())
+  ; redir =
+      { input = None
+      ; output = None
+      ; error = None
+      }
+  ; return = nop
+  ; vars =
+      { builtin = Env.create ()
+      ; global = Env.create ()
+      }
+  }
+
+let show t =
+  let buf = Buffer.create 128 in
+  Buffer.add_string buf "|";
+  let fr = current_frame t in
+  Stack.iter (fun s -> Buffer.add_string buf (!% " %s |" s)) fr.stack;
+  Buffer.add_string buf "\n|";
+  Stack.iter
+    (fun ss ->
+      Buffer.add_string buf (!% " [%s] |" (String.concat "; " ss))
+    )
+    fr.exp_buf;
+  Buffer.contents buf
 
 let init t =
-  set_builtin t "status" [|"0"|];
-  push_buf t;
-  new_env t
+  set_builtin t "status" [|"0"|]
 
 let reset_all t =
   return t;
   reset_redir t;
-  Stack.clear t.stack;
-  Stack.clear t.exp_buf;
-  push_buf t;
-  while not (Stack.is_empty t.loop_stack) do
-    exit_loop t
-  done;
-  try while true do delete_env t done
-  with _ -> ()
+  pop_frame_all t;
+  delete_env_all t

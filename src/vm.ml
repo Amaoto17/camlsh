@@ -92,12 +92,12 @@ let execute ctx code =
         fetch ctx & pc + 1
 
     | Inst.Brace ->
-        Ctx.push_buf ctx;
+        Ctx.push_frame ctx;
         fetch ctx & pc + 1
 
     | Inst.Brace_end ->
         let ss = Ctx.concat_string ctx in
-        Ctx.pop_buf ctx;
+        Ctx.pop_frame ctx;
         Ctx.add_string_list ctx ss;
         fetch ctx & pc + 1
 
@@ -164,7 +164,7 @@ let execute ctx code =
         Ctx.reset_redir ctx
     
     | Inst.Loop_end ->
-        Ctx.exit_loop ctx;
+        Ctx.pop_frame ctx;
         fetch ctx & pc + 1
 
     | Inst.Nop ->
@@ -227,8 +227,7 @@ let execute ctx code =
         | 0 ->
             close read;
             Ctx.set_stdout ctx write;
-            Ctx.clear_stack ctx;
-            Ctx.clear_buf ctx;
+            Ctx.push_frame ctx;
             fetch ctx & pc + 2
         | _ ->
             close write;
@@ -261,7 +260,7 @@ let execute ctx code =
         fetch ctx & pc + 1
 
     | Inst.While (st, ed) ->
-        Ctx.begin_loop ctx st ed;
+        Ctx.push_frame ~loop_range:(st, ed) ctx;
         fetch ctx & pc + 1
   in
 

@@ -36,10 +36,6 @@ let rec main_loop ctx =
     done
   with
     | End_of_file -> exit 0
-    | Shell_error msg ->
-        Ctx.reset_all ctx;
-        eprintf "%s\n%!" msg;
-        main_loop ctx
     | Interruption ->
         Ctx.reset_all ctx;
         eprintf "interrupted.\n%!";

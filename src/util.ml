@@ -2,11 +2,6 @@ external (&) : ('a -> 'b) -> 'a -> 'b = "%apply"
 let (!%) = Printf.sprintf
 
 
-exception Shell_error of string
-
-let shell_error msg = Shell_error msg |> raise
-
-
 module Deco = struct
   let colorize color s =
     match color with
@@ -79,10 +74,7 @@ module Env = struct
     let env = create () in
     { env with parent = Some t; outer = t.outer }
 
-  let delete_env t =
-    match t.parent with
-    | None -> failwith "no parent environment"
-    | Some env -> env
+  let delete_env t = t.parent
 
   let put_env t =
     let env = create () in
