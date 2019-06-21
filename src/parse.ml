@@ -24,7 +24,7 @@ let symbol c =
   char c
     |. spaces
 
-let meta_chars = " |;,'^$<>(){}\\"
+let meta_chars = " |;,'^$*?<>(){}[]\\"
 
 let control_char =
   in_class "abefnrtv"
@@ -99,6 +99,7 @@ let array_ref node =
   one_of
     [ succeed (fun st ed -> Ast.Array_ref (node, st, ed))
         |. char '['
+        |. spaces
         |= int
         |= option
             ( succeed identity
@@ -112,13 +113,25 @@ let array_ref node =
     ; succeed node
     ]
 
+let glob_pattern =
+  many1 (escaped_char " |;,'^$<>(){}\\")
+    |> concat
+
+let glob =
+  one_of
+    [ succeed (fun s -> Ast.Word s)
+        |= word
+    ; succeed (fun pat -> Ast.Glob pat)
+        |= glob_pattern
+    ]
+
 let rec brace = fun st -> (|>) st &
   one_of
     [ succeed (fun nodes -> Ast.Brace nodes)
         |. symbol '{'
         |= sep_by1 (char ',' |. spaces) subst
         |. char '}'
-    ; word_elem
+    ; glob
     ]
 
 and ident = fun st -> (|>) st &

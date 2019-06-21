@@ -1,5 +1,6 @@
 open Printf
 open Unix
+open Re.Glob
 
 open Util
 
@@ -40,6 +41,126 @@ let exec_builtin ctx argv =
   in
   Ctx.set_status ctx status
 
+(*
+
+glob展開可能か
+ファイルが存在するか
+ディレクトリであるか
+パターンの末尾であるか
+
+*)
+
+(* let expand_glob path =
+  let is_wildcard = function
+    | '*' | '?' | '[' -> true
+    | _ -> false
+  in
+  let can_expand s =
+    let len = String.length s in
+    let rec loop i =
+      if i >= len then false
+      else if s.[i] = '\\' then loop (i + 2)
+      else if is_wildcard s.[i] then true
+      else loop (i + 1)
+    in
+    loop 0
+  in
+  let dirs = String.split_on_char '/' path in
+  let rec loop acc path_buf = function
+    | [] -> acc
+    | name :: [] ->
+        if can_expand name then
+          let path = Buffer.contents path_buf in
+          let dir = opendir path in
+          let rec loop acc =
+            try loop (readdir dir :: acc)
+            with End_of_file -> acc
+          in
+          loop []
+  loop *)
+
+let can_expand s =
+  let is_wildcard = function
+    | '*' | '?' | '[' -> true
+    | _ -> false
+  in
+  let len = String.length s in
+  let rec loop i =
+    if i >= len then false
+    else if s.[i] = '\\' then loop (i + 2)
+    else if is_wildcard s.[i] then true
+    else loop (i + 1)
+  in
+  loop 0
+
+let split_path path =
+  let len = String.length path in
+  let sep =
+    match String.rindex_opt path '/' with
+    | None -> -1
+    | Some n -> n
+  in
+  let dirname =
+    if sep = 0 then "/"
+    else if sep = -1 then ""
+    else String.sub path 0 sep
+  in
+  let basename = String.sub path (sep + 1) (len - sep - 1) in
+  (dirname, basename)
+
+let concat_path dirname basename =
+  let dir_len = String.length dirname in
+  let base_len = String.length dirname in
+  let buf = Buffer.create (dir_len + base_len + 1) in
+  if dirname <> "" then begin
+    if dirname = "/" then
+      Buffer.add_char buf '/'
+    else begin
+      Buffer.add_string buf dirname;
+      Buffer.add_char buf '/'
+    end
+  end;
+  Buffer.add_string buf basename;
+  Buffer.contents buf
+
+
+let glob_dir target dir_only dirname =
+  let re = glob target |> Re.compile in
+  try
+    let dir_handler =
+      opendir (if dirname = "" then getcwd () else dirname)
+    in
+    let rec loop acc =
+        try
+        let filename = readdir dir_handler in
+        let fullpath = concat_path dirname filename in
+        if filename = "." || filename = ".." then loop acc
+        else if filename.[0] = '.' && target.[0] != '.' then loop acc
+        else if dir_only && Sys.file_exists fullpath && not (Sys.is_directory fullpath) then loop acc
+        else if Re.execp re filename then loop (fullpath :: acc)
+        else loop acc
+        with End_of_file -> acc
+    in
+    let res = loop [] in
+    closedir dir_handler;
+    res
+  with
+    | Unix_error (_, _, _) -> []
+
+let rec expand_glob dir_only path =
+  let (dirname, basename) = split_path path in
+  let dirs =
+    if can_expand dirname then
+      if path <> dirname then expand_glob true dirname
+      else glob_dir "" true dirname
+    else [dirname]
+  in
+  if basename = "" then dirs |> List.map (fun dir -> concat_path dir "/")
+  else
+    dirs
+      |> List.map (fun dir -> glob_dir basename dir_only dir)
+      |> List.concat
+      |> List.fast_sort String.compare
 
 let execute ctx code =
   let rec fetch ctx pc =
@@ -132,6 +253,7 @@ let execute ctx code =
         begin match fork () with
         | 0 ->
             Sys.set_signal Sys.sigint Signal_default;
+            (* Sys.set_signal Sys.sigtstp Signal_default; *)
             begin
               try
                 Ctx.do_redirection ctx;
@@ -168,6 +290,19 @@ let execute ctx code =
               Ctx.set_local ctx name v;
               fetch ctx & pc + 2
           end
+
+    | Inst.Glob ->
+        let ss = Ctx.emit_string ctx in
+        let res =
+          List.map (expand_glob false) ss |> List.concat
+        in
+        Ctx.add_string_list ctx res;
+        (* let ss = Ctx.emit_string ctx in
+        let res =
+          List.map expand_glob ss |> List.concat
+        in
+        Ctx.add_string_list ctx res; *)
+        fetch ctx & pc + 1
 
     | Inst.If ->
         let status = Ctx.get_status ctx in

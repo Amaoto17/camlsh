@@ -93,6 +93,10 @@ let rec walk t = function
       Code.set t _iter & Inst.Jump _end;
       Code.set t _for & Inst.For (_start, _end)
 
+  | Ast.Glob pat ->
+      Code.emit t & Inst.Add_string pat;
+      Code.emit t & Inst.Glob
+
   | Ast.Identifier name ->
       Code.emit t & Inst.Push name;
       Code.emit t & Inst.Var

@@ -14,6 +14,7 @@ type t =
   | Elem of t list
   | External of t list
   | For of t * t list * t
+  | Glob of string
   | Identifier of string
   | If of t * t
   | Or of t
@@ -55,6 +56,8 @@ let rec show = function
       !% "(external %s)" (show_list nodes)
   | For (ident, values, body) ->
       !% "(for %s %s %s)" (show ident) (show_list values) (show body)
+  | Glob s ->
+      !% "(glob %s)" s
   | Identifier name ->
       !% "(identifier %s)" name
   | If (cond, body) ->

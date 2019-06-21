@@ -16,6 +16,7 @@ type t =
   | Exit
   | For of int * int
   | For_iter
+  | Glob
   | If
   | Jump of int
   | Leave
@@ -50,6 +51,7 @@ let show = function
   | Exit -> "exit"
   | For (st, ed) -> !% "for %d..%d" st ed
   | For_iter -> "for_iter"
+  | Glob -> "glob"
   | If -> "if"
   | Jump pos -> !% "jump -> %02d" pos
   | Leave -> "leave"

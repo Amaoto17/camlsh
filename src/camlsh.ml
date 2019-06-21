@@ -44,6 +44,8 @@ let rec main_loop ctx =
 
 let main =
   Sys.set_signal Sys.sigint (Signal_handle sig_handler);
+  Sys.set_signal Sys.sigtstp Signal_ignore;
+  (* assert (Re.execp (Re.compile (Re.Glob.glob "foo*")) "foobar"); *)
   let ctx = Ctx.create () in
   Ctx.init ctx;
   main_loop ctx

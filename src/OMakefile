@@ -1,5 +1,5 @@
 BINDIR = ../bin/
-OCAMLINCLUDES += ../../OParse/src/
+OCAMLINCLUDES += ../../OParse/src/ ~/.opam/4.06.1/lib/re
 
 FILES[] =
   util
@@ -14,12 +14,11 @@ FILES[] =
 
 PROGRAM = camlsh
 # OCAMLFLAGS += -i
-OCAML_LIBS += ../../Oparse/src/oparse
-OCAML_OTHER_LIBS += unix
+OCAML_OTHER_LIBS += unix oparse re
 
 .DEFAULT: $(OCamlProgram $(BINDIR)$(PROGRAM), $(FILES))
 
 .PHONY: clean
 
 clean:
-  rm -f *.cm* *.o camlsh camlsh.opt
+  rm -f *.cm* *.o $(BINDIR)camlsh $(BINDIR)camlsh.opt
