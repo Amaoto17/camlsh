@@ -25,7 +25,6 @@ type t =
   | Pipe
   | Pipe_open
   | Push of string
-  | Return
   | Stderr
   | Stderr_append
   | Stdin
@@ -60,7 +59,6 @@ let show = function
   | Pipe -> "pipe"
   | Pipe_open -> "pipe_open"
   | Push s -> !% "push %S" s
-  | Return -> "return"
   | Stderr -> "stdout"
   | Stderr_append -> "stdout_append"
   | Stdin -> "stdin"

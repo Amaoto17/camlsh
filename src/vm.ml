@@ -171,6 +171,7 @@ let execute ctx code =
         let argv = Ctx.pop_all ctx in
         Ctx.safe_redirection ctx;
         exec_builtin ctx argv;
+        Ctx.restore ctx;
         fetch ctx & pc + 1
 
     | Inst.Brace ->
@@ -305,10 +306,6 @@ let execute ctx code =
 
     | Inst.Push s ->
         Ctx.push ctx s;
-        fetch ctx & pc + 1
-
-    | Inst.Return ->
-        Ctx.return ctx;
         fetch ctx & pc + 1
 
     | Inst.Stderr ->

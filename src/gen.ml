@@ -58,8 +58,7 @@ let rec walk t = function
   | Ast.Builtin (name, nodes) ->
       Code.emit t & Inst.Push name;
       List.iter (walk t) nodes;
-      Code.emit t & Inst.Builtin;
-      Code.emit t & Inst.Return
+      Code.emit t & Inst.Builtin
 
   | Ast.Compound nodes ->
       List.iter (walk t) nodes

@@ -7,7 +7,7 @@ let nop () = ()
 type t = 
   { mutable control_stack : frame * frame Stack.t
   ; redir : redir
-  ; mutable return : (unit -> unit)
+  ; mutable restore : (unit -> unit)
   ; vars : vars
   }
 
@@ -163,12 +163,12 @@ let do_redirection t =
   | Some fd -> dup2_close fd stderr
   end
 
-let set_return t thunk =
-  t.return <- thunk
+let set_restore t thunk =
+  t.restore <- thunk
 
-let return t =
-  t.return ();
-  t.return <- nop
+let restore t =
+  t.restore ();
+  t.restore <- nop
 
 let safe_redirection t =
   let stdin' = dup stdin in
@@ -191,7 +191,7 @@ let safe_redirection t =
     dup2_close stdout' stdout;
     dup2_close stderr' stderr
   in
-  set_return t thunk
+  set_restore t thunk
 
 
 (* stack operation *)
@@ -280,7 +280,7 @@ let create () =
       ; output = None
       ; error = None
       }
-  ; return = nop
+  ; restore = nop
   ; vars =
       { builtin = Env.create ()
       ; global = Env.create ()
@@ -304,7 +304,7 @@ let init t =
   set_builtin t "status" [|"0"|]
 
 let reset_all t =
-  return t;
+  restore t;
   reset_redir t;
   pop_frame_all t;
   delete_env_all t
