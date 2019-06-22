@@ -23,6 +23,7 @@ type t =
   | Loop_end
   | Nop
   | Pipe
+  | Pipe_open
   | Push of string
   | Return
   | Stderr
@@ -33,7 +34,6 @@ type t =
   | Subst
   | Unless
   | Var
-  | Wait
   | While of int * int
 
 let show = function
@@ -58,6 +58,7 @@ let show = function
   | Loop_end -> "loop_end"
   | Nop -> "nop"
   | Pipe -> "pipe"
+  | Pipe_open -> "pipe_open"
   | Push s -> !% "push %S" s
   | Return -> "return"
   | Stderr -> "stdout"
@@ -68,5 +69,4 @@ let show = function
   | Subst -> "subst"
   | Unless -> "unless"
   | Var -> "var"
-  | Wait -> "wait"
   | While (st, ed) -> !% "while %d..%d" st ed

@@ -5,17 +5,17 @@ open Re.Glob
 open Util
 
 
-let wait_child ctx =
-  let status_string = function
-    | WEXITED n -> !% "exited %d" n
-    | WSIGNALED n -> !% "signaled %d" n
-    | WSTOPPED n -> !% "stopped %d" n
-  in
+let status_string = function
+  | WEXITED n -> !% "exited %d" n
+  | WSIGNALED n -> !% "signaled %d" n
+  | WSTOPPED n -> !% "stopped %d" n
+
+let wait_child ctx pid =
   let status_num = function
     | WEXITED n -> n
     | WSIGNALED n | WSTOPPED n -> n + 128
   in
-  let (pid, status) = wait () in
+  let (pid, status) = waitpid [] pid in
   let res = !% "pid: %d, status: %s" pid (status_string status) in
   eprintf "%s\n%!" (res |> Deco.colorize `Green);
   status_num status |> Ctx.set_status ctx
@@ -41,43 +41,6 @@ let exec_builtin ctx argv =
   in
   Ctx.set_status ctx status
 
-(*
-
-glob展開可能か
-ファイルが存在するか
-ディレクトリであるか
-パターンの末尾であるか
-
-*)
-
-(* let expand_glob path =
-  let is_wildcard = function
-    | '*' | '?' | '[' -> true
-    | _ -> false
-  in
-  let can_expand s =
-    let len = String.length s in
-    let rec loop i =
-      if i >= len then false
-      else if s.[i] = '\\' then loop (i + 2)
-      else if is_wildcard s.[i] then true
-      else loop (i + 1)
-    in
-    loop 0
-  in
-  let dirs = String.split_on_char '/' path in
-  let rec loop acc path_buf = function
-    | [] -> acc
-    | name :: [] ->
-        if can_expand name then
-          let path = Buffer.contents path_buf in
-          let dir = opendir path in
-          let rec loop acc =
-            try loop (readdir dir :: acc)
-            with End_of_file -> acc
-          in
-          loop []
-  loop *)
 
 let can_expand s =
   let is_wildcard = function
@@ -265,8 +228,8 @@ let execute ctx code =
                 | _ ->
                     exit 127
             end
-        | _ ->
-            wait_child ctx;
+        | pid ->
+            wait_child ctx pid;
             fetch ctx & pc + 1
         end
 
@@ -297,11 +260,6 @@ let execute ctx code =
           List.map (expand_glob false) ss |> List.concat
         in
         Ctx.add_string_list ctx res;
-        (* let ss = Ctx.emit_string ctx in
-        let res =
-          List.map expand_glob ss |> List.concat
-        in
-        Ctx.add_string_list ctx res; *)
         fetch ctx & pc + 1
 
     | Inst.If ->
@@ -332,6 +290,16 @@ let execute ctx code =
         | _ ->
             close write;
             Ctx.set_stdin ctx read;
+            fetch ctx & pc + 1
+        end
+
+    | Inst.Pipe_open ->
+        begin match fork () with
+        | 0 ->
+            fetch ctx & pc + 2
+        | pid ->
+            let (pid, status) = waitpid [] pid in
+            eprintf "pid: %d, status: %s\n%!" pid (status_string status);
             fetch ctx & pc + 1
         end
 
@@ -381,9 +349,9 @@ let execute ctx code =
             Ctx.set_stdout ctx write;
             Ctx.push_frame ctx;
             fetch ctx & pc + 2
-        | _ ->
+        | pid ->
             close write;
-            wait_child ctx;
+            wait_child ctx pid;
             let in_ch = in_channel_of_descr read in
             let rec loop acc =
               try (input_line in_ch) :: acc |> loop
@@ -405,10 +373,6 @@ let execute ctx code =
         | None -> Ctx.add_empty ctx
         | Some arr -> arr |> Array.to_list |> Ctx.add_string_list ctx
         end;
-        fetch ctx & pc + 1
-
-    | Inst.Wait ->
-        wait_child ctx;
         fetch ctx & pc + 1
 
     | Inst.While (st, ed) ->
