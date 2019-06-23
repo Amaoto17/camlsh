@@ -1,0 +1,1 @@
+val compile : Ast.t -> Inst.t array
