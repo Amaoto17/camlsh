@@ -5,10 +5,15 @@ open Unix
 let nop () = ()
 
 type t = 
-  { mutable control_stack : frame * frame Stack.t
+  { frame_stack : frame_stack
   ; redir : redir
   ; mutable restore : (unit -> unit)
   ; vars : vars
+  }
+
+and frame_stack =
+  { mutable current : frame
+  ; rest : frame Stack.t
   }
 
 and frame =
@@ -40,27 +45,44 @@ let new_frame () =
   }
 
 let current_frame t =
-  fst t.control_stack
+  t.frame_stack.current
 
-let push_frame ?iteration t =
+(* let push_frame ?iteration t =
   let (current, stack) = t.control_stack in
   Stack.push current stack;
   let fr = new_frame () in
   fr.local <- Env.put_env current.local;
   fr.iteration <- iteration;
-  t.control_stack <- (fr, stack)
+  t.control_stack <- (fr, stack) *)
+
+let push_frame ?iteration t =
+  Stack.push t.frame_stack.current t.frame_stack.rest;
+  let fr = new_frame () in
+  fr.local <- Env.put_env t.frame_stack.current.local;
+  fr.iteration <- iteration;
+  t.frame_stack.current <- fr
 
 let pop_frame t =
+  let current = Stack.pop t.frame_stack.rest in
+  t.frame_stack.current <- current
+
+(* let pop_frame t =
   let (_, stack) = t.control_stack in
   let current = Stack.pop stack in
-  t.control_stack <- (current, stack)
+  t.control_stack <- (current, stack) *)
 
 let rec pop_frame_all t =
+  if not (Stack.is_empty t.frame_stack.rest) then begin
+    pop_frame t;
+    pop_frame_all t
+  end
+
+(* let rec pop_frame_all t =
   let (_, stack) = t.control_stack in
   if not (Stack.is_empty stack) then begin
     pop_frame t;
     pop_frame_all t
-  end
+  end *)
 
 
 (* handling variables *)
@@ -101,7 +123,7 @@ let set_builtin t = Env.set t.vars.builtin
 let get_status t =
   match Env.find t.vars.builtin "status" with
   | None -> failwith "'status' was not found"
-  | Some v -> v.(0)
+  | Some v -> int_of_string v.(0)
 
 let set_status t v =
   Env.set t.vars.builtin "status" [|string_of_int v|]
@@ -279,7 +301,10 @@ let take_iter_val t =
 (* initialization and utilities *)
 
 let create () =
-  { control_stack = (new_frame (), Stack.create ())
+  { frame_stack =
+      { current = new_frame ()
+      ; rest = Stack.create ()
+      }
   ; redir =
       { input = None
       ; output = None

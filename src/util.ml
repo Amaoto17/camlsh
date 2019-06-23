@@ -3,14 +3,16 @@ let (!%) = Printf.sprintf
 
 
 module Deco = struct
+  type color = Red | Green | Yellow | Magenta | Cyan | Gray
+
   let colorize color s =
     match color with
-    | `Red     -> !% "\x1b[31m%s\x1b[m" s
-    | `Green   -> !% "\x1b[32m%s\x1b[m" s
-    | `Yellow  -> !% "\x1b[33m%s\x1b[m" s
-    | `Magenta -> !% "\x1b[35m%s\x1b[m" s
-    | `Cyan    -> !% "\x1b[36m%s\x1b[m" s
-    | `Gray    -> !% "\x1b[2;37m%s\x1b[m" s
+    | Red     -> !% "\x1b[31m%s\x1b[m" s
+    | Green   -> !% "\x1b[32m%s\x1b[m" s
+    | Yellow  -> !% "\x1b[33m%s\x1b[m" s
+    | Magenta -> !% "\x1b[35m%s\x1b[m" s
+    | Cyan    -> !% "\x1b[36m%s\x1b[m" s
+    | Gray    -> !% "\x1b[2;37m%s\x1b[m" s
 end
 
 

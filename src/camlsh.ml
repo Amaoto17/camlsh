@@ -9,7 +9,7 @@ let dump_code =
     ( fun i inst ->
         let s =
           !% "[%02d] %s" i (Inst.show inst)
-            |> Deco.colorize `Magenta
+            |> Deco.colorize Magenta
         in
         eprintf "%s\n%!" s
     )
@@ -17,18 +17,18 @@ let dump_code =
 let rec main_loop ctx =
   try
     while true do
-      printf "[%s]\n" (getcwd () |> Deco.colorize `Yellow);
+      printf "[%s]\n" (getcwd () |> Deco.colorize Yellow);
       printf "%% ";
       let input = read_line () in
         match Parse.parse input with
         | Ok ast ->
-            eprintf "%s\n%!" (Ast.show ast |> Deco.colorize `Cyan);
+            eprintf "%s\n%!" (Ast.show ast |> Deco.colorize Cyan);
             let code = Gen.compile ast in
             dump_code code;
             Vm.execute ctx code;
             ()
         | Error msg ->
-            eprintf "%s\n%!" (msg |> Deco.colorize `Red)
+            eprintf "%s\n%!" (msg |> Deco.colorize Red)
     done
   with
     | End_of_file -> exit 0

@@ -26,33 +26,11 @@ let status_num = function
 let wait_child ctx pid =
   let (pid, status) = waitpid [] pid in
   let res = !% "pid: %d, status: %s" pid (status_string status) in
-  eprintf "%s\n%!" (res |> Deco.colorize `Green);
+  eprintf "%s\n%!" (res |> Deco.colorize Green);
   status_num status |> Ctx.set_status ctx
 
 
-(* let exec_builtin ctx argv =
-  let argc = Array.length argv in
-  let status =
-    match argv.(0) with
-    | "cd" ->
-        Builtin.cd argc argv
-    | "echo" ->
-        Builtin.exec ctx argv;
-        0
-    | "false" ->
-        1
-    | "set" ->
-        Builtin.set ctx argc argv
-    | "true" ->
-        0
-    | com ->
-        eprintf "unknown builtin %S" com;
-        1
-  in
-  Ctx.set_status ctx status *)
-
-
-
+(* wildcard expansion *)
 
 let can_expand s =
   let is_wildcard = function
@@ -98,7 +76,6 @@ let concat_path dirname basename =
   Buffer.add_string buf basename;
   Buffer.contents buf
 
-
 let glob_dir target dir_only dirname =
   let re = glob target |> Re.compile in
   try
@@ -137,14 +114,15 @@ let rec expand_glob dir_only path =
       |> List.concat
       |> List.fast_sort String.compare
 
+
 let execute ctx code =
   let rec fetch ctx pc =
     try
       let inst = code.(pc) in
       let s = !% "fetched: [%02d] %s" pc (Inst.show inst) in
-      eprintf "%s\n%!" (s |> Deco.colorize `Gray);
+      eprintf "%s\n%!" (s |> Deco.colorize Gray);
       let s = Ctx.show ctx in
-      eprintf "%s\n%!" (s |> Deco.colorize `Gray);
+      eprintf "%s\n%!" (s |> Deco.colorize Gray);
       exec ctx pc inst
     with Invalid_argument _ ->
       failwith "invalild address"
@@ -279,7 +257,7 @@ let execute ctx code =
 
     | Inst.If ->
         let status = Ctx.get_status ctx in
-        if status = "0" then fetch ctx & pc + 2
+        if status = 0 then fetch ctx & pc + 2
         else fetch ctx & pc + 1
 
     | Inst.Jump dst ->
@@ -388,7 +366,7 @@ let execute ctx code =
 
     | Inst.Unless ->
         let status = Ctx.get_status ctx in
-        if status = "0" then fetch ctx & pc + 1
+        if status = 0 then fetch ctx & pc + 1
         else fetch ctx & pc + 2
 
     | Inst.Var ->
