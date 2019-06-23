@@ -122,6 +122,13 @@ let rec walk t = function
       Code.emit t & Inst.Exit;
       insert_jump t _parent
 
+  | Ast.Quoted nodes ->
+      List.iter (walk t) nodes
+
+  | Ast.Quoted_ident node ->
+      walk t node;
+      Code.emit t & Inst.Concat_string
+
   | Ast.Stderr path ->
       walk t path;
       Code.emit t & Inst.Stderr

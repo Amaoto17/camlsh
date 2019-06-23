@@ -9,6 +9,7 @@ type t =
   | Brace_end
   | Break
   | Builtin
+  | Concat_string
   | Continue
   | Emit_string
   | End
@@ -44,6 +45,7 @@ let show = function
   | Brace_end -> "brace_end"
   | Break -> "break"
   | Builtin -> "builtin"
+  | Concat_string -> "concat_string"
   | Continue -> "continue"
   | Emit_string -> "emit_string"
   | End -> "end"

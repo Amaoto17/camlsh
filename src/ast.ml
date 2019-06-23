@@ -20,6 +20,8 @@ type t =
   | Or of t
   | Pipe of t * t
   | Pipe_err of t * t
+  | Quoted of t list
+  | Quoted_ident of t
   | Stderr of t
   | Stderr_append of t
   | Stdin of t
@@ -69,6 +71,10 @@ let rec show = function
       !% "(pipe %s %s)" (show left) (show right)
   | Pipe_err (left, right) ->
       !% "(pipe_err %s %s)" (show left) (show right)
+  | Quoted nodes ->
+      !% "(quoted %s)" (show_list nodes)
+  | Quoted_ident node ->
+      !% "(quoted_var %s)" (show node)
   | Stderr path ->
       !% "(^ %s)" (show path)
   | Stderr_append path ->

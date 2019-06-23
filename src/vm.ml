@@ -183,6 +183,11 @@ let execute ctx code =
             fetch ctx ed
         end
 
+    | Inst.Concat_string ->
+        let ss = Ctx.take_string ctx in
+        Ctx.add_string ctx (String.concat " " ss);
+        fetch ctx & pc + 1
+
     | Inst.Continue ->
         begin match Ctx.loop_start ctx with
         | None ->

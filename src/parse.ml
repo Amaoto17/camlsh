@@ -24,7 +24,7 @@ let symbol c =
   char c
     |. spaces
 
-let meta_chars = " |;,'^$*?<>(){}[]\\"
+let meta_chars = " |;,'\"^$*?<>(){}[]\\"
 
 let control_char =
   in_class "abefnrtv"
@@ -49,6 +49,17 @@ let escaped_char chars =
             [ in_class chars
             ; control_char
             ; unexpect "illegal backslash escape"
+            ]
+    ; not_in_class chars
+    ]
+
+let quoted_char chars =
+  one_of
+    [ succeed identity
+        |. char '\\'
+        |= one_of
+            [ in_class chars
+            ; succeed '\\'
             ]
     ; not_in_class chars
     ]
@@ -80,21 +91,6 @@ let identifier =
     ; expect "identifier"
     ]
 
-let single_quoted =
-  succeed (fun s -> Ast.Word s)
-    |. char '\''
-    |= one_of
-        [ succeed identity
-            |= many1 (escaped_char "\'\\")
-            |> concat
-        ; expect "quoted word"
-        ]
-    |. char '\''
-
-let word_elem =
-  succeed (fun s -> Ast.Word s)
-    |= word
-
 let array_ref node =
   one_of
     [ succeed (fun st ed -> Ast.Array_ref (node, st, ed))
@@ -113,8 +109,35 @@ let array_ref node =
     ; succeed node
     ]
 
+let single_quoted =
+  succeed (fun s -> Ast.Word s)
+    |. char '\''
+    |= one_of
+        [ many1 (quoted_char "\\\'")
+            |> concat
+        ; expect "quoted word"
+        ]
+    |. char '\''
+
+let double_quoted =
+  succeed (fun nodes -> Ast.Quoted nodes)
+    |. char '\"'
+    |= many1
+        ( one_of
+            [ many1 (escaped_char "\\\"$")
+                |> concat
+                |> map (fun s -> Ast.Word s)
+            ; succeed (fun name -> Ast.Identifier name)
+                |. char '$'
+                |= identifier
+                |> and_then array_ref
+                |> map (fun node -> Ast.Quoted_ident node)
+            ]
+        )
+    |. char '\"'
+
 let glob_pattern =
-  many1 (escaped_char " |;,'^$<>(){}\\")
+  many1 (escaped_char " |;,'\"^$<>(){}\\")
     |> concat
 
 let glob =
@@ -134,7 +157,7 @@ let rec brace = fun st -> (|>) st &
     ; glob
     ]
 
-and ident = fun st -> (|>) st &
+and variable = fun st -> (|>) st &
   one_of
     [ succeed (fun name -> Ast.Identifier name)
         |. char '$'
@@ -150,7 +173,7 @@ and subst = fun st -> (|>) st &
         |= compound
         |. char ')'
         |> and_then array_ref
-    ; ident
+    ; variable
     ]
 
 and elem = fun st -> (|>) st &
@@ -158,6 +181,7 @@ and elem = fun st -> (|>) st &
     |= many1
         ( one_of
             [ single_quoted
+            ; double_quoted
             ; subst
             ]
         )

@@ -6,6 +6,7 @@ type t =
   | Brace_end
   | Break
   | Builtin
+  | Concat_string
   | Continue
   | Emit_string
   | End

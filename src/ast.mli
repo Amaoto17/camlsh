@@ -17,6 +17,8 @@ type t =
   | Or of t
   | Pipe of t * t
   | Pipe_err of t * t
+  | Quoted of t list
+  | Quoted_ident of t
   | Stderr of t
   | Stderr_append of t
   | Stdin of t
