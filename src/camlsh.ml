@@ -14,10 +14,6 @@ let dump_code =
         eprintf "%s\n%!" s
     )
 
-exception Interruption
-
-let sig_handler _ = raise Interruption
-
 let rec main_loop ctx =
   try
     while true do
@@ -36,16 +32,14 @@ let rec main_loop ctx =
     done
   with
     | End_of_file -> exit 0
-    | Interruption ->
+    | Vm.Interruption ->
         Ctx.reset_all ctx;
         eprintf "interrupted.\n%!";
         main_loop ctx
 
 
 let main =
-  Sys.set_signal Sys.sigint (Signal_handle sig_handler);
-  Sys.set_signal Sys.sigtstp Signal_ignore;
-  (* assert (Re.execp (Re.compile (Re.Glob.glob "foo*")) "foobar"); *)
+  Vm.signal_init ();
   let ctx = Ctx.create () in
   Ctx.init ctx;
   main_loop ctx

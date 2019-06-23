@@ -175,7 +175,10 @@ and redirection = fun st -> (|>) st &
     ; succeed (fun path -> Ast.Stderr_append path)
         |. string "^^"
     ; succeed (fun path -> Ast.Stderr path)
-        |. char '^'
+        |. backtrack
+            ( char '^'
+                |. not_followed_by (char '|')
+            )
     ]
     |. spaces
     |= elem
@@ -252,8 +255,13 @@ and conditional = fun st -> (|>) st &
 
 and pipeline = fun st -> (|>) st &
   let op =
-    succeed (fun left right -> Ast.Pipe (left, right))
-      |. symbol '|'
+    one_of
+      [ succeed (fun left right -> Ast.Pipe_err (left, right))
+          |. string "^|"
+      ; succeed (fun left right -> Ast.Pipe (left, right))
+          |. char '|'
+      ]
+      |. spaces
   in
   chainl conditional op
 

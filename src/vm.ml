@@ -4,17 +4,26 @@ open Re.Glob
 
 open Util
 
+exception Interruption
+
+let interrupt _ = raise Interruption
+
+let signal_init () =
+  Sys.set_signal Sys.sigint & Signal_handle interrupt;
+  Sys.set_signal Sys.sigquit Signal_ignore;
+  Sys.set_signal Sys.sigtstp Signal_ignore
+
 
 let status_string = function
   | WEXITED n -> !% "exited %d" n
   | WSIGNALED n -> !% "signaled %d" n
   | WSTOPPED n -> !% "stopped %d" n
 
+let status_num = function
+  | WEXITED n -> n
+  | WSIGNALED n | WSTOPPED n -> (abs n) + 128
+
 let wait_child ctx pid =
-  let status_num = function
-    | WEXITED n -> n
-    | WSIGNALED n | WSTOPPED n -> n + 128
-  in
   let (pid, status) = waitpid [] pid in
   let res = !% "pid: %d, status: %s" pid (status_string status) in
   eprintf "%s\n%!" (res |> Deco.colorize `Green);
@@ -217,7 +226,7 @@ let execute ctx code =
         begin match fork () with
         | 0 ->
             Sys.set_signal Sys.sigint Signal_default;
-            (* Sys.set_signal Sys.sigtstp Signal_default; *)
+            Sys.set_signal Sys.sigquit Signal_default;
             begin
               try
                 Ctx.do_redirection ctx;
@@ -230,7 +239,9 @@ let execute ctx code =
                     exit 127
             end
         | pid ->
+            Sys.set_signal Sys.sigint Signal_ignore;
             wait_child ctx pid;
+            Sys.set_signal Sys.sigint & Signal_handle interrupt;
             fetch ctx & pc + 1
         end
 
@@ -287,6 +298,19 @@ let execute ctx code =
         | 0 ->
             close read;
             Ctx.set_stdout ctx write;
+            fetch ctx & pc + 2
+        | _ ->
+            close write;
+            Ctx.set_stdin ctx read;
+            fetch ctx & pc + 1
+        end
+
+    | Inst.Pipe_err ->
+        let (read, write) = pipe () in
+        begin match fork () with
+        | 0 ->
+            close read;
+            Ctx.set_stderr ctx write;
             fetch ctx & pc + 2
         | _ ->
             close write;

@@ -23,6 +23,7 @@ type t =
   | Loop_end
   | Nop
   | Pipe
+  | Pipe_err
   | Pipe_open
   | Push of string
   | Stderr
@@ -57,6 +58,7 @@ let show = function
   | Loop_end -> "loop_end"
   | Nop -> "nop"
   | Pipe -> "pipe"
+  | Pipe_err -> "pipe_err"
   | Pipe_open -> "pipe_open"
   | Push s -> !% "push %S" s
   | Stderr -> "stdout"

@@ -115,7 +115,7 @@ let rec walk t = function
       walk t node;
       insert_jump t _end
 
-  | Ast.Pipe _ as pipe ->
+  | Ast.Pipe _ | Ast.Pipe_err _ as pipe ->
       Code.emit t & Inst.Pipe_open;
       let _parent = reserve t in
       walk_pipe t pipe;
@@ -169,6 +169,13 @@ let rec walk t = function
 and walk_pipe t = function
   | Ast.Pipe (left, right) ->
       Code.emit t & Inst.Pipe;
+      let parent = reserve t in
+      walk_pipe t left;
+      insert_jump t parent;
+      walk_pipe t right
+
+  | Ast.Pipe_err (left, right) ->
+      Code.emit t & Inst.Pipe_err;
       let parent = reserve t in
       walk_pipe t left;
       insert_jump t parent;

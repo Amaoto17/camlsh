@@ -19,6 +19,7 @@ type t =
   | If of t * t
   | Or of t
   | Pipe of t * t
+  | Pipe_err of t * t
   | Stderr of t
   | Stderr_append of t
   | Stdin of t
@@ -66,6 +67,8 @@ let rec show = function
       !% "(or %s)" (show node)
   | Pipe (left, right) ->
       !% "(pipe %s %s)" (show left) (show right)
+  | Pipe_err (left, right) ->
+      !% "(pipe_err %s %s)" (show left) (show right)
   | Stderr path ->
       !% "(^ %s)" (show path)
   | Stderr_append path ->
