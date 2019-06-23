@@ -30,14 +30,15 @@ let wait_child ctx pid =
   status_num status |> Ctx.set_status ctx
 
 
-let exec_builtin ctx argv =
+(* let exec_builtin ctx argv =
   let argc = Array.length argv in
   let status =
     match argv.(0) with
     | "cd" ->
         Builtin.cd argc argv
     | "echo" ->
-        Builtin.echo argc argv
+        Builtin.exec ctx argv;
+        0
     | "false" ->
         1
     | "set" ->
@@ -48,7 +49,9 @@ let exec_builtin ctx argv =
         eprintf "unknown builtin %S" com;
         1
   in
-  Ctx.set_status ctx status
+  Ctx.set_status ctx status *)
+
+
 
 
 let can_expand s =
@@ -179,7 +182,7 @@ let execute ctx code =
     | Inst.Builtin ->
         let argv = Ctx.pop_all ctx in
         Ctx.safe_redirection ctx;
-        exec_builtin ctx argv;
+        Builtin.exec ctx argv;
         Ctx.restore ctx;
         fetch ctx & pc + 1
 

@@ -112,6 +112,11 @@ let set_local t key v =
   | None -> Env.set fr.local key v
   | Some _ -> failwith (!% "'%s' is read-only variable" key)
 
+let set_global t key v =
+  match Env.find t.vars.builtin key with
+  | None -> Env.set t.vars.global key v
+  | Some _ -> failwith (!% "'%s' is read-only variable" key)
+
 
 (* redirection *)
 
