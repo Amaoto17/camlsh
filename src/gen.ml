@@ -109,6 +109,8 @@ let rec walk t = function
       Code.emit t & Inst.End;
       insert_jump t _end
 
+  | Ast.Null -> ()
+
   | Ast.Or node ->
       Code.emit t & Inst.Unless;
       let _end = reserve t in

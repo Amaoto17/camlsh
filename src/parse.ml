@@ -187,7 +187,6 @@ and elem = fun st -> (|>) st &
         )
     |. spaces
 
-
 and redirection = fun st -> (|>) st &
   one_of
     [ succeed (fun path -> Ast.Stdin path)
@@ -291,12 +290,17 @@ and pipeline = fun st -> (|>) st &
 
 and compound = fun st -> (|>) st &
   let aux =
-    look_ahead word
-      |> and_then
-          ( fun s ->
-              if is_reserved s then unexpect "reserved"
-              else pipeline
-          )
+    one_of
+      [ look_ahead word
+          |> and_then
+              ( fun s ->
+                  if is_reserved s then unexpect "reserved"
+                  else pipeline
+              )
+      ; succeed Ast.Null
+          |. spaces
+          |. look_ahead any
+      ]
   in
   succeed (fun coms -> Ast.Compound coms)
     |= sep_end_by1 (symbol ';') aux

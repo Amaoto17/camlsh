@@ -17,6 +17,7 @@ type t =
   | Glob of string
   | Identifier of string
   | If of t * t
+  | Null
   | Or of t
   | Pipe of t * t
   | Pipe_err of t * t
@@ -65,6 +66,8 @@ let rec show = function
       !% "(identifier %s)" name
   | If (cond, body) ->
       !% "(if %s %s)" (show cond) (show body)
+  | Null ->
+      "(null)"
   | Or node ->
       !% "(or %s)" (show node)
   | Pipe (left, right) ->

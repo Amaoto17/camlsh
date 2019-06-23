@@ -14,6 +14,7 @@ type t =
   | Glob of string
   | Identifier of string
   | If of t * t
+  | Null
   | Or of t
   | Pipe of t * t
   | Pipe_err of t * t
