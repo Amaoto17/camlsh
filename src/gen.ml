@@ -121,15 +121,11 @@ let rec walk t = function
       Code.emit t & Inst.Pipe_open;
       let _parent = reserve t in
       walk_pipe t pipe;
-      Code.emit t & Inst.Exit;
       insert_jump t _parent
-
-  | Ast.Quoted nodes ->
-      List.iter (walk t) nodes
 
   | Ast.Quoted_ident node ->
       walk t node;
-      Code.emit t & Inst.Concat_string
+      Code.emit t & Inst.Concat_array
 
   | Ast.Stderr path ->
       walk t path;
@@ -189,6 +185,10 @@ and walk_pipe t = function
       walk_pipe t left;
       insert_jump t _parent;
       walk_pipe t right
+
+  | Ast.External nodes ->
+      List.iter (walk t) nodes;
+      Code.emit t & Inst.Exec_nofork
   
   | node ->
       walk t node;

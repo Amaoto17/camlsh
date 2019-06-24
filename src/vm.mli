@@ -1,4 +1,5 @@
 exception Interruption
+exception Exec_failure
 
 val signal_init : unit -> unit
 

@@ -36,6 +36,9 @@ let rec main_loop ctx =
         Ctx.reset_all ctx;
         eprintf "interrupted.\n%!";
         main_loop ctx
+    | Vm.Exec_failure ->
+        Ctx.reset_all ctx;
+        main_loop ctx
 
 
 let main =

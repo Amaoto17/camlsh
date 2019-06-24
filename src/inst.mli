@@ -6,11 +6,12 @@ type t =
   | Brace_end
   | Break
   | Builtin
-  | Concat_string
+  | Concat_array
   | Continue
   | Emit_string
   | End
   | Exec
+  | Exec_nofork
   | Exit
   | For of int * int
   | For_iter

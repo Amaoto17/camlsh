@@ -5,6 +5,7 @@ open Re.Glob
 open Util
 
 exception Interruption
+exception Exec_failure
 
 let interrupt _ = raise Interruption
 
@@ -25,8 +26,8 @@ let status_num = function
 
 let wait_child ctx pid =
   let (pid, status) = waitpid [] pid in
-  let res = !% "pid: %d, status: %s" pid (status_string status) in
-  eprintf "%s\n%!" (res |> Deco.colorize Green);
+  (* let res = !% "pid: %d, status: %s" pid (status_string status) in
+  eprintf "%s\n%!" (res |> Deco.colorize Green); *)
   status_num status |> Ctx.set_status ctx
 
 
@@ -114,15 +115,34 @@ let rec expand_glob dir_only path =
       |> List.concat
       |> List.fast_sort String.compare
 
+let exec_external ctx argv =
+  Ctx.do_redirection ctx;
+  Sys.set_signal Sys.sigint Signal_default;
+  Sys.set_signal Sys.sigquit Signal_default;
+  try
+    execvp argv.(0) argv
+  with
+    | Unix_error(Unix.ENOENT, _, name) ->
+        eprintf "camlsh: unknown command %s\n%!" name;
+        exit 127
+    | _ ->
+        exit 127
+
+let open_file path flags perm =
+  try
+    openfile path flags perm
+  with _ ->
+    eprintf "%s: No such file or directory\n%!" path;
+    raise Exec_failure
 
 let execute ctx code =
   let rec fetch ctx pc =
     try
       let inst = code.(pc) in
-      let s = !% "fetched: [%02d] %s" pc (Inst.show inst) in
+      (* let s = !% "fetched: [%02d] %s" pc (Inst.show inst) in
       eprintf "%s\n%!" (s |> Deco.colorize Gray);
       let s = Ctx.show ctx in
-      eprintf "%s\n%!" (s |> Deco.colorize Gray);
+      eprintf "%s\n%!" (s |> Deco.colorize Gray); *)
       exec ctx pc inst
     with Invalid_argument _ ->
       failwith "invalild address"
@@ -183,7 +203,7 @@ let execute ctx code =
             fetch ctx ed
         end
 
-    | Inst.Concat_string ->
+    | Inst.Concat_array ->
         let ss = Ctx.take_string ctx in
         Ctx.add_string ctx (String.concat " " ss);
         fetch ctx & pc + 1
@@ -209,30 +229,23 @@ let execute ctx code =
 
     | Inst.Exec ->
         let argv = Ctx.pop_all ctx in
+        Sys.set_signal Sys.sigint Signal_ignore;
         begin match fork () with
         | 0 ->
-            Sys.set_signal Sys.sigint Signal_default;
-            Sys.set_signal Sys.sigquit Signal_default;
-            begin
-              try
-                Ctx.do_redirection ctx;
-                execvp argv.(0) argv
-              with
-                | Unix_error(Unix.ENOENT, _, name) ->
-                    eprintf "camlsh: unknown command %s\n%!" name;
-                    exit 127
-                | _ ->
-                    exit 127
-            end
+            exec_external ctx argv
         | pid ->
-            Sys.set_signal Sys.sigint Signal_ignore;
             wait_child ctx pid;
             Sys.set_signal Sys.sigint & Signal_handle interrupt;
             fetch ctx & pc + 1
         end
 
+    | Inst.Exec_nofork ->
+        let argv = Ctx.pop_all ctx in
+        exec_external ctx argv
+
     | Inst.Exit ->
-        exit 0
+        let status = Ctx.get_status ctx in
+        exit status
 
     | Inst.For (st, ed) ->
         let values = Ctx.pop_all ctx |> Array.to_list in
@@ -255,7 +268,11 @@ let execute ctx code =
     | Inst.Glob ->
         let ss = Ctx.emit_string ctx in
         let res =
-          List.map (expand_glob false) ss |> List.concat
+          try
+            List.map (expand_glob false) ss |> List.concat
+          with Parse_error ->
+            eprintf "invalid wildcard '%s'\n%!" (String.concat "" ss);
+            []
         in
         Ctx.add_string_list ctx res;
         fetch ctx & pc + 1
@@ -309,8 +326,7 @@ let execute ctx code =
         | 0 ->
             fetch ctx & pc + 2
         | pid ->
-            let (pid, status) = waitpid [] pid in
-            eprintf "pid: %d, status: %s\n%!" pid (status_string status);
+            wait_child ctx pid;
             fetch ctx & pc + 1
         end
 
@@ -320,31 +336,31 @@ let execute ctx code =
 
     | Inst.Stderr ->
         let path = Ctx.pop ctx in
-        let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
+        let dst = open_file path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
         Ctx.set_stderr ctx dst;
         fetch ctx & pc + 1
 
     | Inst.Stderr_append ->
         let path = Ctx.pop ctx in
-        let dst = openfile path [O_WRONLY; O_APPEND] 0o644 in
+        let dst = open_file path [O_WRONLY; O_APPEND] 0o644 in
         Ctx.set_stderr ctx dst;
         fetch ctx & pc + 1
 
     | Inst.Stdin ->
         let path = Ctx.pop ctx in
-        let src = openfile path [O_RDONLY] 0 in
+        let src = open_file path [O_RDONLY] 0 in
         Ctx.set_stdin ctx src;
         fetch ctx & pc + 1
 
     | Inst.Stdout ->
         let path = Ctx.pop ctx in
-        let dst = openfile path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
+        let dst = open_file path [O_WRONLY; O_CREAT; O_TRUNC] 0o644 in
         Ctx.set_stdout ctx dst;
         fetch ctx & pc + 1
 
     | Inst.Stdout_append ->
         let path = Ctx.pop ctx in
-        let dst = openfile path [O_WRONLY; O_APPEND] 0o644 in
+        let dst = open_file path [O_WRONLY; O_APPEND] 0o644 in
         Ctx.set_stdout ctx dst;
         fetch ctx & pc + 1
 

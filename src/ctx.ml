@@ -7,7 +7,6 @@ let nop () = ()
 type t = 
   { frame_stack : frame_stack
   ; redir : redir
-  ; mutable restore : (unit -> unit)
   ; vars : vars
   }
 
@@ -27,6 +26,7 @@ and redir =
   { mutable input : file_descr option
   ; mutable output : file_descr option
   ; mutable error : file_descr option
+  ; mutable restore : (unit -> unit)
   }
 
 and vars =
@@ -47,14 +47,6 @@ let new_frame () =
 let current_frame t =
   t.frame_stack.current
 
-(* let push_frame ?iteration t =
-  let (current, stack) = t.control_stack in
-  Stack.push current stack;
-  let fr = new_frame () in
-  fr.local <- Env.put_env current.local;
-  fr.iteration <- iteration;
-  t.control_stack <- (fr, stack) *)
-
 let push_frame ?iteration t =
   Stack.push t.frame_stack.current t.frame_stack.rest;
   let fr = new_frame () in
@@ -66,23 +58,11 @@ let pop_frame t =
   let current = Stack.pop t.frame_stack.rest in
   t.frame_stack.current <- current
 
-(* let pop_frame t =
-  let (_, stack) = t.control_stack in
-  let current = Stack.pop stack in
-  t.control_stack <- (current, stack) *)
-
 let rec pop_frame_all t =
   if not (Stack.is_empty t.frame_stack.rest) then begin
     pop_frame t;
     pop_frame_all t
   end
-
-(* let rec pop_frame_all t =
-  let (_, stack) = t.control_stack in
-  if not (Stack.is_empty stack) then begin
-    pop_frame t;
-    pop_frame_all t
-  end *)
 
 
 (* handling variables *)
@@ -191,11 +171,11 @@ let do_redirection t =
   end
 
 let set_restore t thunk =
-  t.restore <- thunk
+  t.redir.restore <- thunk
 
 let restore t =
-  t.restore ();
-  t.restore <- nop
+  t.redir.restore ();
+  t.redir.restore <- nop
 
 let safe_redirection t =
   let stdin' = dup stdin in
@@ -309,8 +289,8 @@ let create () =
       { input = None
       ; output = None
       ; error = None
+      ; restore = nop
       }
-  ; restore = nop
   ; vars =
       { builtin = Env.create ()
       ; global = Env.create ()
@@ -337,4 +317,5 @@ let reset_all t =
   restore t;
   reset_redir t;
   pop_frame_all t;
+  pop_all t |> ignore;
   delete_env_all t

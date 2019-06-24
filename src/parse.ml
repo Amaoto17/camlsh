@@ -11,35 +11,32 @@ open Oparse.Util
 open Util
 
 
-let reserved =
-  [ "do"
-  ; "end"
-  ; "in"
-  ; "then"
-  ]
+let reserved = ["do"; "end"; "in"; "then"]
 
 let is_reserved s = List.mem s reserved
+
+let meta_single_quote = "\\'"
+let meta_double_quote = "\\\"$"
+let meta_glob = "\\\"'<>^|$,;(){} "
+let meta_word = meta_glob ^ "*?[]"
 
 let symbol c =
   char c
     |. spaces
 
-let meta_chars = " |;,'\"^$*?<>(){}[]\\"
-
 let control_char =
-  in_class "abefnrtv"
-    |> map
-        ( function
-            | 'a' -> '\x07'
-            | 'b' -> '\x08'
-            | 'e' -> '\x1b'
-            | 'f' -> '\x0c'
-            | 'n' -> '\x0a'
-            | 'r' -> '\x0d'
-            | 't' -> '\x09'
-            | 'v' -> '\x0b'
-            | _ -> failwith "unreachable pattern: illegal control character"
-        )
+  let escape = function
+    | 'a' -> '\x07'
+    | 'b' -> '\x08'
+    | 'e' -> '\x1b'
+    | 'f' -> '\x0c'
+    | 'n' -> '\x0a'
+    | 'r' -> '\x0d'
+    | 't' -> '\x09'
+    | 'v' -> '\x0b'
+    | _ -> failwith "illegal control character"
+  in
+  in_class "abefnrtv" |> map escape
 
 let escaped_char chars =
   one_of
@@ -66,8 +63,7 @@ let quoted_char chars =
 
 let word =
   one_of
-    [ succeed identity
-        |= many1 (escaped_char meta_chars)
+    [ many1 (escaped_char meta_word)
         |> concat
     ; expect "word"
     ]
@@ -75,9 +71,8 @@ let word =
 let keyword s =
   one_of
     [ backtrack &
-        succeed identity
-          |= string s
-          |. not_followed_by (not_in_class meta_chars)
+        string s
+          |. not_followed_by (not_in_class meta_word)
     ; expect (!% "keyword %S" s)
     ]
     |. spaces
@@ -94,8 +89,7 @@ let identifier =
 let array_ref node =
   one_of
     [ succeed (fun st ed -> Ast.Array_ref (node, st, ed))
-        |. char '['
-        |. spaces
+        |. symbol '['
         |= int
         |= option
             ( succeed identity
@@ -110,21 +104,21 @@ let array_ref node =
     ]
 
 let single_quoted =
-  succeed (fun s -> Ast.Word s)
+  succeed identity
     |. char '\''
     |= one_of
-        [ many1 (quoted_char "\\\'")
+        [ many1 (quoted_char meta_single_quote)
             |> concat
         ; expect "quoted word"
         ]
     |. char '\''
 
 let double_quoted =
-  succeed (fun nodes -> Ast.Quoted nodes)
+  succeed (fun nodes -> Ast.Compound nodes)
     |. char '\"'
     |= many1
         ( one_of
-            [ many1 (escaped_char "\\\"$")
+            [ many1 (escaped_char meta_double_quote)
                 |> concat
                 |> map (fun s -> Ast.Word s)
             ; succeed (fun name -> Ast.Identifier name)
@@ -136,14 +130,20 @@ let double_quoted =
         )
     |. char '\"'
 
+let word_elem =
+  succeed (fun s -> Ast.Word s)
+    |= one_of
+        [ single_quoted
+        ; word
+        ]
+
 let glob_pattern =
-  many1 (escaped_char " |;,'\"^$<>(){}\\")
+  many1 (escaped_char meta_glob)
     |> concat
 
 let glob =
   one_of
-    [ succeed (fun s -> Ast.Word s)
-        |= word
+    [ word_elem
     ; succeed (fun pat -> Ast.Glob pat)
         |= glob_pattern
     ]
@@ -180,8 +180,7 @@ and elem = fun st -> (|>) st &
   succeed (fun nodes -> Ast.Elem nodes)
     |= many1
         ( one_of
-            [ single_quoted
-            ; double_quoted
+            [ double_quoted
             ; subst
             ]
         )
@@ -289,17 +288,18 @@ and pipeline = fun st -> (|>) st &
   chainl conditional op
 
 and compound = fun st -> (|>) st &
+  let check_reserved = function
+    | Ast.Word s ->
+        if is_reserved s then unexpect "reserved"
+        else pipeline
+    | _ ->
+        expect "word"
+  in
   let aux =
     one_of
-      [ look_ahead word
-          |> and_then
-              ( fun s ->
-                  if is_reserved s then unexpect "reserved"
-                  else pipeline
-              )
+      [ look_ahead word_elem
+          |> and_then check_reserved
       ; succeed Ast.Null
-          |. spaces
-          |. look_ahead any
       ]
   in
   succeed (fun coms -> Ast.Compound coms)

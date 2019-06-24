@@ -9,11 +9,12 @@ type t =
   | Brace_end
   | Break
   | Builtin
-  | Concat_string
+  | Concat_array
   | Continue
   | Emit_string
   | End
   | Exec
+  | Exec_nofork
   | Exit
   | For of int * int
   | For_iter
@@ -45,11 +46,12 @@ let show = function
   | Brace_end -> "brace_end"
   | Break -> "break"
   | Builtin -> "builtin"
-  | Concat_string -> "concat_string"
+  | Concat_array -> "concat_array"
   | Continue -> "continue"
   | Emit_string -> "emit_string"
   | End -> "end"
   | Exec -> "exec"
+  | Exec_nofork -> "exec_nofork"
   | Exit -> "exit"
   | For (st, ed) -> !% "for %d..%d" st ed
   | For_iter -> "for_iter"
