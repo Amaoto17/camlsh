@@ -26,8 +26,8 @@ let status_num = function
 
 let wait_child ctx pid =
   let (pid, status) = waitpid [] pid in
-  (* let res = !% "pid: %d, status: %s" pid (status_string status) in
-  eprintf "%s\n%!" (res |> Deco.colorize Green); *)
+  let res = !% "pid: %d, status: %s" pid (status_string status) in
+  eprintf "%s\n%!" (res |> Deco.colorize Green);
   status_num status |> Ctx.set_status ctx
 
 
@@ -139,10 +139,10 @@ let execute ctx code =
   let rec fetch ctx pc =
     try
       let inst = code.(pc) in
-      (* let s = !% "fetched: [%02d] %s" pc (Inst.show inst) in
+      let s = !% "fetched: [%02d] %s" pc (Inst.show inst) in
       eprintf "%s\n%!" (s |> Deco.colorize Gray);
       let s = Ctx.show ctx in
-      eprintf "%s\n%!" (s |> Deco.colorize Gray); *)
+      eprintf "%s\n%!" (s |> Deco.colorize Gray);
       exec ctx pc inst
     with Invalid_argument _ ->
       failwith "invalild address"
@@ -175,6 +175,7 @@ let execute ctx code =
 
     | Inst.Begin ->
         Ctx.new_env ctx;
+        Ctx.safe_redirection ctx;
         fetch ctx & pc + 1
 
     | Inst.Builtin ->
@@ -182,6 +183,7 @@ let execute ctx code =
         Ctx.safe_redirection ctx;
         Builtin.exec ctx argv;
         Ctx.restore ctx;
+        Ctx.reset_redir ctx;
         fetch ctx & pc + 1
 
     | Inst.Brace ->
@@ -224,6 +226,8 @@ let execute ctx code =
         fetch ctx & pc + 1
 
     | Inst.End ->
+        Ctx.restore ctx;
+        Ctx.reset_redir ctx;
         Ctx.delete_env ctx;
         fetch ctx & pc + 1
 
@@ -236,6 +240,7 @@ let execute ctx code =
         | pid ->
             wait_child ctx pid;
             Sys.set_signal Sys.sigint & Signal_handle interrupt;
+            Ctx.reset_redir ctx;
             fetch ctx & pc + 1
         end
 
@@ -250,6 +255,7 @@ let execute ctx code =
     | Inst.For (st, ed) ->
         let values = Ctx.pop_all ctx |> Array.to_list in
         Ctx.push_frame ~iteration:(st, ed, values) ctx;
+        Ctx.safe_redirection ctx;
         fetch ctx & pc + 1
 
     | Inst.For_iter ->
@@ -289,6 +295,8 @@ let execute ctx code =
         Ctx.reset_redir ctx
     
     | Inst.Loop_end ->
+        Ctx.restore ctx;
+        Ctx.reset_redir ctx;
         Ctx.pop_frame ctx;
         fetch ctx & pc + 1
 
@@ -400,6 +408,7 @@ let execute ctx code =
 
     | Inst.While (st, ed) ->
         Ctx.push_frame ~iteration:(st, ed, []) ctx;
+        Ctx.safe_redirection ctx;
         fetch ctx & pc + 1
   in
 

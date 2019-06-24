@@ -6,7 +6,8 @@ let nop () = ()
 
 type t = 
   { frame_stack : frame_stack
-  ; redir : redir
+  ; mutable redir : redir
+  ; restore : (unit -> unit) Stack.t
   ; vars : vars
   }
 
@@ -26,7 +27,6 @@ and redir =
   { mutable input : file_descr option
   ; mutable output : file_descr option
   ; mutable error : file_descr option
-  ; mutable restore : (unit -> unit)
   }
 
 and vars =
@@ -140,9 +140,7 @@ let reset_redir t =
   get_input t |> safe_close;
   get_output t |> safe_close;
   get_error t |> safe_close;
-  t.redir.input <- None;
-  t.redir.output <- None;
-  t.redir.error <- None
+  t.redir <- { input = None; output = None; error = None }
 
 let set_stdin t input =
   get_input t |> safe_close;
@@ -171,35 +169,39 @@ let do_redirection t =
   end
 
 let set_restore t thunk =
-  t.redir.restore <- thunk
+  Stack.push thunk t.restore
 
 let restore t =
-  t.redir.restore ();
-  t.redir.restore <- nop
+  let thunk = Stack.pop t.restore in
+  thunk ()
+
+let restore_all t =
+  while not (Stack.is_empty t.restore) do
+    restore t
+  done
 
 let safe_redirection t =
-  let stdin' = dup stdin in
-  let stdout' = dup stdout in
-  let stderr' = dup stderr in
-  begin match get_input t with
-  | None -> ()
-  | Some fd -> dup2 fd stdin
-  end;
-  begin match get_output t with
-  | None -> ()
-  | Some fd -> dup2 fd stdout
-  end;
-  begin match get_error t with
-  | None -> ()
-  | Some fd -> dup2 fd stderr
-  end;
+  let get_restore getter std_fd =
+    match getter t with
+    | None -> nop
+    | Some fd ->
+        let saved = dup std_fd in
+        dup2 fd std_fd;
+        fun () -> dup2_close saved std_fd
+  in
+  let redir = t.redir in
+  let restore_input = get_restore get_input stdin in
+  let restore_output = get_restore get_output stdout in
+  let restore_error = get_restore get_error stderr in
+  t.redir <- { input = None; output = None; error = None };
   let thunk () =
-    dup2_close stdin' stdin;
-    dup2_close stdout' stdout;
-    dup2_close stderr' stderr
+    t.redir <- redir;
+    restore_input ();
+    restore_output ();
+    restore_error ();
   in
   set_restore t thunk
-
+  
 
 (* stack operation *)
 
@@ -289,8 +291,8 @@ let create () =
       { input = None
       ; output = None
       ; error = None
-      ; restore = nop
       }
+  ; restore = Stack.create ()
   ; vars =
       { builtin = Env.create ()
       ; global = Env.create ()
@@ -314,7 +316,7 @@ let init t =
   set_builtin t "status" [|"0"|]
 
 let reset_all t =
-  restore t;
+  restore_all t;
   reset_redir t;
   pop_frame_all t;
   pop_all t |> ignore;
