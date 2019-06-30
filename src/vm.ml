@@ -15,6 +15,16 @@ let signal_init () =
   Sys.set_signal Sys.sigtstp Signal_ignore
 
 
+let signal_map = function
+  |  -4 ->  1 |  -6 ->  2 |  -9 ->  3 |  -5 ->  4
+  | -25 ->  5 |  -1 ->  6 | -24 ->  7 |  -3 ->  8
+  |  -7 ->  9 | -22 -> 10 | -10 -> 11 |  -8 -> 13
+  |  -2 -> 14 | -11 -> 15 | -26 -> 16 | -16 -> 17
+  | -17 -> 18 | -15 -> 19 | -14 -> 20 | -18 -> 21
+  | -19 -> 22 | -23 -> 23 | -27 -> 24 | -28 -> 25
+  | -20 -> 26 | -21 -> 27 | -12 -> 29 | -13 -> 30
+  | n -> n
+
 let status_string = function
   | WEXITED n -> !% "exited %d" n
   | WSIGNALED n -> !% "signaled %d" n
@@ -22,12 +32,12 @@ let status_string = function
 
 let status_num = function
   | WEXITED n -> n
-  | WSIGNALED n | WSTOPPED n -> (abs n) + 128
+  | WSIGNALED n | WSTOPPED n -> (signal_map n) + 128
 
 let wait_child ctx pid =
   let (pid, status) = waitpid [] pid in
-  let res = !% "pid: %d, status: %s" pid (status_string status) in
-  eprintf "%s\n%!" (res |> Deco.colorize Green);
+  (* let res = !% "pid: %d, status: %s" pid (status_string status) in
+  eprintf "%s\n%!" (res |> Deco.colorize Green); *)
   status_num status |> Ctx.set_status ctx
 
 
@@ -115,6 +125,7 @@ let rec expand_glob dir_only path =
       |> List.concat
       |> List.fast_sort String.compare
 
+
 let exec_external ctx argv =
   Ctx.do_redirection ctx;
   Sys.set_signal Sys.sigint Signal_default;
@@ -139,10 +150,10 @@ let execute ctx code =
   let rec fetch ctx pc =
     try
       let inst = code.(pc) in
-      let s = !% "fetched: [%02d] %s" pc (Inst.show inst) in
-      eprintf "%s\n%!" (s |> Deco.colorize Gray);
-      let s = Ctx.show ctx in
-      eprintf "%s\n%!" (s |> Deco.colorize Gray);
+      (* let s = !% "fetched: [%02d] %s" pc (Inst.show inst) in
+      eprintf "%s\n%!" (s |> Deco.colorize Gray); *)
+      (* let s = Ctx.show ctx in *)
+      (* eprintf "%s\n%!" (s |> Deco.colorize Gray); *)
       exec ctx pc inst
     with Invalid_argument _ ->
       failwith "invalild address"
@@ -292,12 +303,13 @@ let execute ctx code =
         fetch ctx dst
 
     | Inst.Leave ->
-        Ctx.reset_redir ctx
-    
+        ()
+
     | Inst.Loop_end ->
         Ctx.restore ctx;
         Ctx.reset_redir ctx;
         Ctx.pop_frame ctx;
+        Ctx.set_status ctx 0;
         fetch ctx & pc + 1
 
     | Inst.Nop ->

@@ -85,6 +85,39 @@ let set ctx argc argv =
       return 1
 
 
+let read ctx argc argv =
+  let return = return ctx in
+  let set_vars line =
+    match argc with
+    | 1 -> return 0
+    | _ ->
+        let rec loop status i = function
+          | [] -> return status
+          | ts when i = argc - 1 ->
+              begin
+                try
+                  let rest = ts |> String.concat " " in
+                  Ctx.set_local ctx argv.(i) [|rest|];
+                  return status
+                with Failure s ->
+                  return 1
+              end
+          | t :: ts ->
+              begin
+                try
+                  Ctx.set_local ctx argv.(i) [|t|];
+                  loop status (i + 1) ts
+                with Failure s ->
+                  loop 1 (i + 1) ts
+              end
+        in
+        let tokens = String.split_on_char ' ' line in
+        loop 0 1 tokens
+  in
+  try let line = read_line () in set_vars line
+  with End_of_file -> return 1
+
+
 let exec ctx argv =
   let argc = Array.length argv in
   let return = return ctx in
@@ -92,6 +125,7 @@ let exec ctx argv =
   | "cd" -> cd ctx argc argv
   | "echo" -> echo ctx argc argv
   | "false" -> false_ ctx argc argv
+  | "read" -> read ctx argc argv
   | "set" -> set ctx argc argv
   | "true" -> true_ ctx argc argv
   | com ->

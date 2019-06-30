@@ -26,14 +26,10 @@ let symbol c =
 
 let control_char =
   let escape = function
-    | 'a' -> '\x07'
-    | 'b' -> '\x08'
-    | 'e' -> '\x1b'
-    | 'f' -> '\x0c'
-    | 'n' -> '\x0a'
-    | 'r' -> '\x0d'
-    | 't' -> '\x09'
-    | 'v' -> '\x0b'
+    | 'a' -> '\x07' | 'b' -> '\x08'
+    | 'e' -> '\x1b' | 'f' -> '\x0c'
+    | 'n' -> '\x0a' | 'r' -> '\x0d'
+    | 't' -> '\x09' | 'v' -> '\x0b'
     | _ -> failwith "illegal control character"
   in
   in_class "abefnrtv" |> map escape
@@ -217,6 +213,7 @@ and builtin = fun st -> (|>) st &
         [ keyword "cd"
         ; keyword "echo"
         ; keyword "false"
+        ; keyword "read"
         ; keyword "set"
         ; keyword "true"
         ]
@@ -300,6 +297,7 @@ and compound = fun st -> (|>) st &
       [ look_ahead word_elem
           |> and_then check_reserved
       ; succeed Ast.Null
+          |. look_ahead (char ';')
       ]
   in
   succeed (fun coms -> Ast.Compound coms)
@@ -308,7 +306,7 @@ and compound = fun st -> (|>) st &
 let program =
   succeed identity
     |. spaces
-    |= compound
+    |= option_with Ast.Null compound
     |. eof
 
 

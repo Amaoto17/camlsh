@@ -22,9 +22,9 @@ let rec main_loop ctx =
       let input = read_line () in
         match Parse.parse input with
         | Ok ast ->
-            eprintf "%s\n%!" (Ast.show ast |> Deco.colorize Cyan);
+            (* eprintf "%s\n%!" (Ast.show ast |> Deco.colorize Cyan); *)
             let code = Gen.compile ast in
-            dump_code code;
+            (* dump_code code; *)
             Vm.execute ctx code;
             ()
         | Error msg ->

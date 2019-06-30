@@ -155,18 +155,14 @@ let set_stderr t error =
   t.redir.error <- Some error
 
 let do_redirection t =
-  begin match get_input t with
-  | None -> ()
-  | Some fd -> dup2_close fd stdin
-  end;
-  begin match get_output t with
-  | None -> ()
-  | Some fd -> dup2_close fd stdout
-  end;
-  begin match get_error t with
-  | None -> ()
-  | Some fd -> dup2_close fd stderr
-  end
+  let redirect getter std_fd =
+    match getter t with
+    | None -> ()
+    | Some fd -> dup2_close fd std_fd
+  in
+  redirect get_input stdin;
+  redirect get_output stdout;
+  redirect get_error stderr
 
 let set_restore t thunk =
   Stack.push thunk t.restore
@@ -201,7 +197,7 @@ let safe_redirection t =
     restore_error ();
   in
   set_restore t thunk
-  
+
 
 (* stack operation *)
 
