@@ -1,0 +1,7 @@
+(env
+  (dev (flags (:standard -w -27-32..34))))
+
+(executable
+  (name camlsh)
+  (modes native)
+  (libraries unix re parser))

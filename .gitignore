@@ -24,7 +24,4 @@ setup.log
 # Merlin configuring file for Vim and Emacs
 .merlin
 
-.omakedb*
-*.log
-*.omc
 bin/

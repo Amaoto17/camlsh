@@ -1,13 +1,13 @@
-module Str_char = Oparse.Stream.Char
-module Base = Oparse.Char.Make(Str_char)
-module Parser = struct
+open Parser.Util
+module Str_char = Parser.Stream.Char
+module Base = Parser.Char.Make(Str_char)
+module P = struct
   include Base
-  include Oparse.Combinator.Make(Base)
-  include Oparse.Expr.Make(Base)
+  include Parser.Combinator.Make(Base)
+  include Parser.Expr.Make(Base)
 end
 
-open Parser
-open Oparse.Util
+open P
 open Util
 
 
